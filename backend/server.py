@@ -4,12 +4,14 @@ Designed for local testing on a laptop or local network during SIH Hackathon.
 Accepts transcript chunks, checks for fraud indicators, and computes risk scores.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import uvicorn
-import re
+
+from fraud_detector import FraudDetector
+from risk_engine import RiskEngine
 
 app = FastAPI(
     title="Svara_X Backend API",
@@ -25,102 +27,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+fraud_detector = FraudDetector()
+risk_engine = RiskEngine()
+
 class TranscriptRequest(BaseModel):
     transcript: str
     caller_number: Optional[str] = "Unknown"
-
-class FraudIndicatorResult(BaseModel):
-    category: str
-    confidence: float
-    evidence: str
+    synthetic_voice_prob: Optional[float] = 0.0
 
 class RiskAnalysisResponse(BaseModel):
     fraud_probability: float
+    risk_score: int
     risk_level: str  # LOW, MEDIUM, HIGH, CRITICAL
-    indicators: List[FraudIndicatorResult]
+    indicators: List[str]
     recommendation: str
-
-# Rule & Pattern Signatures for SIH Prototype
-PATTERNS = [
-    {
-        "category": "OTP_REQUEST",
-        "regex": r"\b(otp|one[-\s]?time[-\s]?password|verification\s+code)\b",
-        "weight": 0.50,
-        "evidence": "Caller explicitly requested One-Time Password (OTP)"
-    },
-    {
-        "category": "ACCOUNT_BLOCK_THREAT",
-        "regex": r"\b(block|blocked|suspend|deactivate|freeze|terminated)\b.*\b(account|card|sim|access)\b|\b(account|card)\b.*\b(block|suspend|freeze)\b",
-        "weight": 0.35,
-        "evidence": "Threat detected: Account or card blocking ultimatum"
-    },
-    {
-        "category": "BANK_IMPERSONATION",
-        "regex": r"\b(bank|sbi|hdfc|icici|rbi|reserve\s+bank|manager|customer\s+care|fraud\s+department)\b",
-        "weight": 0.30,
-        "evidence": "Caller impersonated bank/regulatory institution representative"
-    },
-    {
-        "category": "URGENT_ACTION",
-        "regex": r"\b(immediately|urgent|within\s+\d+\s+minutes|hurry|right\s+now|last\s+chance)\b",
-        "weight": 0.25,
-        "evidence": "High-pressure urgency signals detected"
-    },
-    {
-        "category": "PIN_OR_PASSWORD_REQUEST",
-        "regex": r"\b(pin|password|cvv|expiry\s+date|card\s+details)\b",
-        "weight": 0.45,
-        "evidence": "Critical financial authentication credential requested"
-    }
-]
 
 @app.get("/health")
 def health_check():
     return {
         "status": "healthy",
         "service": "Svara_X Backend",
-        "stage": "Priority 1-4 Active",
-        "telephony_screening": "Compatible"
+        "stage": "Priorities 1-12 Active",
+        "telephony_screening": "Compatible",
+        "fraud_categories_loaded": len(fraud_detector.rules)
     }
 
 @app.post("/analyze/transcript", response_model=RiskAnalysisResponse)
 def analyze_transcript(req: TranscriptRequest):
-    text = req.transcript.lower()
-    matched_indicators: List[FraudIndicatorResult] = []
-    cumulative_score = 0.05  # baseline low risk
-
-    for rule in PATTERNS:
-        if re.search(rule["regex"], text, re.IGNORECASE):
-            matched_indicators.append(
-                FraudIndicatorResult(
-                    category=rule["category"],
-                    confidence=0.92,
-                    evidence=rule["evidence"]
-                )
-            )
-            cumulative_score += rule["weight"]
-
-    # Cap score at 0.99
-    risk_score = min(0.99, cumulative_score)
-
-    if risk_score >= 0.80:
-        level = "CRITICAL"
-        rec = "DO NOT SHARE OTP OR PIN! HANG UP IMMEDIATELY."
-    elif risk_score >= 0.60:
-        level = "HIGH"
-        rec = "DO NOT SHARE BANKING CREDENTIALS. HIGH FRAUD LIKELIHOOD."
-    elif risk_score >= 0.30:
-        level = "MEDIUM"
-        rec = "Exercise caution. Verify caller identity with your official branch."
-    else:
-        level = "LOW"
-        rec = "No immediate scam indicators detected."
-
+    detected_indicators = fraud_detector.detect(req.transcript)
+    result = risk_engine.evaluate(
+        indicators=detected_indicators,
+        synthetic_voice_prob=req.synthetic_voice_prob or 0.0
+    )
     return RiskAnalysisResponse(
-        fraud_probability=round(risk_score, 2),
-        risk_level=level,
-        indicators=matched_indicators,
-        recommendation=rec
+        fraud_probability=result["fraud_probability"],
+        risk_score=result["risk_score"],
+        risk_level=result["risk_level"],
+        indicators=result["indicators"],
+        recommendation=result["recommendation"]
     )
 
 if __name__ == "__main__":

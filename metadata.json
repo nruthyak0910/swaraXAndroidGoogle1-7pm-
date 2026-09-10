@@ -1,6 +1,6 @@
 {
   "name": "Svara_X - AI Fraud Call Protection",
-  "description": "Native Android fraud call detection system (Priority 1-4: compilation, lifecycle, permissions, call screening).",
+  "description": "Native Android fraud call protection and detection system with real-time call screening, multi-stage scam analysis across 14 fraud categories, acoustic heuristics, live in-call warnings, settings, and audit history.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

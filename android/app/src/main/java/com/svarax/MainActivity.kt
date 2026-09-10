@@ -14,14 +14,16 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.card.MaterialCardView
 import com.svarax.call.CallStateManager
 import com.svarax.permission.PermissionHelper
+import com.svarax.service.CallMonitoringService
+import com.svarax.ui.CallHistoryActivity
+import com.svarax.ui.LiveCallActivity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
  * MainActivity: Dashboard, Permission Coordinator & Live Call State Monitor.
- * Fulfills Priority 1 (compilation), Priority 2 (launch), Priority 3 (permissions & RoleManager),
- * and Priority 4 (Call screening & Telephony state detection).
+ * Fulfills Priorities 1 through 12.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -35,11 +37,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvLastScreenedCall: TextView
     private lateinit var tvScreeningDesc: TextView
     private lateinit var btnSetScreeningRole: Button
-    private lateinit var badgeTelephonyPerm: TextView
-    private lateinit var badgeMicPerm: TextView
-    private lateinit var badgeNotificationPerm: TextView
+    private lateinit var badgeAllPerms: TextView
     private lateinit var btnGrantAllPermissions: Button
-    private lateinit var btnSimulateCallTest: Button
+    private lateinit var btnStartDemoScam: Button
+    private lateinit var btnOpenLiveCallUI: Button
+    private lateinit var btnStopDemoCall: Button
+    private lateinit var btnViewHistory: Button
+    private lateinit var btnOpenSettings: Button
     private lateinit var tvTelephonyLogs: TextView
     private lateinit var cardProtectionStatus: MaterialCardView
 
@@ -68,7 +72,7 @@ class MainActivity : AppCompatActivity() {
         updatePermissionStatusViews()
     }
 
-    // Listener for Call State transitions (Priority 4)
+    // Listener for Call State transitions (Priority 4 & 5)
     private val callEventListener: (CallStateManager.CallEvent) -> Unit = { event ->
         runOnUiThread {
             handleCallStateChange(event)
@@ -106,11 +110,13 @@ class MainActivity : AppCompatActivity() {
         tvLastScreenedCall = findViewById(R.id.tvLastScreenedCall)
         tvScreeningDesc = findViewById(R.id.tvScreeningDesc)
         btnSetScreeningRole = findViewById(R.id.btnSetScreeningRole)
-        badgeTelephonyPerm = findViewById(R.id.badgeTelephonyPerm)
-        badgeMicPerm = findViewById(R.id.badgeMicPerm)
-        badgeNotificationPerm = findViewById(R.id.badgeNotificationPerm)
+        badgeAllPerms = findViewById(R.id.badgeAllPerms)
         btnGrantAllPermissions = findViewById(R.id.btnGrantAllPermissions)
-        btnSimulateCallTest = findViewById(R.id.btnSimulateCallTest)
+        btnStartDemoScam = findViewById(R.id.btnStartDemoScam)
+        btnOpenLiveCallUI = findViewById(R.id.btnOpenLiveCallUI)
+        btnStopDemoCall = findViewById(R.id.btnStopDemoCall)
+        btnViewHistory = findViewById(R.id.btnViewHistory)
+        btnOpenSettings = findViewById(R.id.btnOpenSettings)
         tvTelephonyLogs = findViewById(R.id.tvTelephonyLogs)
         cardProtectionStatus = findViewById(R.id.cardProtectionStatus)
     }
@@ -135,28 +141,55 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Priority 4 Simulation Button: Trigger Simulated Call Event
-        var simStep = 0
-        btnSimulateCallTest.setOnClickListener {
-            val testNumber = "+91 98765 43210"
-            when (simStep % 3) {
-                0 -> {
-                    logEvent("[SIMULATION] Inbound call event: RINGING from $testNumber")
-                    CallStateManager.updateState(CallStateManager.State.RINGING, testNumber)
-                    btnSimulateCallTest.text = "Simulate Call Answered (OFFHOOK)"
-                }
-                1 -> {
-                    logEvent("[SIMULATION] Call answered: OFFHOOK (Active Call)")
-                    CallStateManager.updateState(CallStateManager.State.OFFHOOK, testNumber)
-                    btnSimulateCallTest.text = "Simulate Call Ended (IDLE)"
-                }
-                2 -> {
-                    logEvent("[SIMULATION] Call ended: IDLE")
-                    CallStateManager.updateState(CallStateManager.State.IDLE, testNumber)
-                    btnSimulateCallTest.text = "Test Priority 4: Trigger Simulated Call Event"
-                }
+        // Priority 6 & 18: Launch Demo Simulation Mode ("Bank OTP Scam")
+        btnStartDemoScam.setOnClickListener {
+            val demoNumber = "+91 98765 43210"
+            logEvent("[DEMO STARTED] Simulating incoming fraudulent call from $demoNumber")
+
+            CallStateManager.updateState(CallStateManager.State.RINGING, demoNumber)
+            CallStateManager.updateState(CallStateManager.State.OFFHOOK, demoNumber)
+
+            val serviceIntent = Intent(this, CallMonitoringService::class.java).apply {
+                putExtra(CallMonitoringService.EXTRA_PHONE_NUMBER, demoNumber)
+                putExtra(CallMonitoringService.EXTRA_IS_DEMO, true)
             }
-            simStep++
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+
+            // Launch Live In-Call Warning Screen
+            val liveIntent = Intent(this, LiveCallActivity::class.java).apply {
+                putExtra("caller_number", demoNumber)
+            }
+            startActivity(liveIntent)
+        }
+
+        // Open Live In-Call Risk Warning Screen
+        btnOpenLiveCallUI.setOnClickListener {
+            val liveIntent = Intent(this, LiveCallActivity::class.java).apply {
+                putExtra("caller_number", "+91 98765 43210")
+            }
+            startActivity(liveIntent)
+        }
+
+        // End / Stop Demo Call
+        btnStopDemoCall.setOnClickListener {
+            logEvent("[DEMO STOPPED] Terminating active call simulation.")
+            CallStateManager.updateState(CallStateManager.State.IDLE, null)
+            stopService(Intent(this, CallMonitoringService::class.java))
+            Toast.makeText(this, "Call simulation ended. Log saved to History.", Toast.LENGTH_SHORT).show()
+        }
+
+        // View Call Analysis History (Priority 12)
+        btnViewHistory.setOnClickListener {
+            startActivity(Intent(this, CallHistoryActivity::class.java))
+        }
+
+        // Open Protection Settings Screen
+        btnOpenSettings.setOnClickListener {
+            startActivity(Intent(this, com.svarax.ui.SettingsActivity::class.java))
         }
     }
 
@@ -169,31 +202,20 @@ class MainActivity : AppCompatActivity() {
         val notifGranted = PermissionHelper.isNotificationGranted(this)
         val roleHeld = PermissionHelper.isCallScreeningRoleHeld(this)
 
-        // Telephony Permission Badge
-        if (phoneGranted) {
-            badgeTelephonyPerm.text = "✓ Granted"
-            badgeTelephonyPerm.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
-        } else {
-            badgeTelephonyPerm.text = "⚠ Needed"
-            badgeTelephonyPerm.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
-        }
+        val isProtected = phoneGranted && micGranted && notifGranted
 
-        // Microphone Permission Badge
-        if (micGranted) {
-            badgeMicPerm.text = "✓ Granted"
-            badgeMicPerm.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
+        if (isProtected) {
+            badgeAllPerms.text = "✓ Granted"
+            badgeAllPerms.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
+            tvProtectionStatusBadge.text = "🟢 ACTIVE"
+            tvProtectionStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
+            cardProtectionStatus.strokeColor = ContextCompat.getColor(this, R.color.shield_active_glow)
         } else {
-            badgeMicPerm.text = "⚠ Needed"
-            badgeMicPerm.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
-        }
-
-        // Notifications Permission Badge
-        if (notifGranted) {
-            badgeNotificationPerm.text = "✓ Granted"
-            badgeNotificationPerm.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
-        } else {
-            badgeNotificationPerm.text = "⚠ Needed"
-            badgeNotificationPerm.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
+            badgeAllPerms.text = "⚠ Action Needed"
+            badgeAllPerms.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
+            tvProtectionStatusBadge.text = "🟡 PENDING PERMISSIONS"
+            tvProtectionStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
+            cardProtectionStatus.strokeColor = ContextCompat.getColor(this, R.color.accent_amber)
         }
 
         // Call Screening Role Status
@@ -206,22 +228,10 @@ class MainActivity : AppCompatActivity() {
             btnSetScreeningRole.text = "Enable"
             btnSetScreeningRole.isEnabled = true
         }
-
-        // Overall Protection Status
-        val isProtected = phoneGranted && micGranted && notifGranted
-        if (isProtected) {
-            tvProtectionStatusBadge.text = "🟢 ACTIVE"
-            tvProtectionStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
-            cardProtectionStatus.strokeColor = ContextCompat.getColor(this, R.color.shield_active_glow)
-        } else {
-            tvProtectionStatusBadge.text = "🟡 PENDING PERMISSIONS"
-            tvProtectionStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
-            cardProtectionStatus.strokeColor = ContextCompat.getColor(this, R.color.accent_amber)
-        }
     }
 
     /**
-     * Reacts to real or simulated CallStateManager state updates (Priority 4).
+     * Reacts to real or simulated CallStateManager state updates (Priority 4 & 5).
      */
     private fun handleCallStateChange(event: CallStateManager.CallEvent) {
         val number = event.incomingNumber ?: "Unknown"
@@ -230,19 +240,19 @@ class MainActivity : AppCompatActivity() {
                 tvActiveCallStatus.text = "📞 INCOMING CALL: $number"
                 tvActiveCallStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
                 tvLastScreenedCall.text = "Screening service intercepted incoming telephony call"
-                logEvent("Screening Event: Incoming call from $number detected.")
+                logEvent("Screening Event: Incoming call from $number intercepted.")
             }
             CallStateManager.State.OFFHOOK -> {
                 tvActiveCallStatus.text = "🔴 CALL ACTIVE: $number"
                 tvActiveCallStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_red))
-                tvLastScreenedCall.text = "Call in progress - Foreground monitoring engaged"
-                logEvent("Call Offhook: Call connected with $number. Ready for audio pipeline.")
+                tvLastScreenedCall.text = "Call in progress - AI Fraud Protection pipeline active"
+                logEvent("Call Connected: $number. Monitoring conversational transcript & acoustic spectrum.")
             }
             CallStateManager.State.IDLE -> {
                 tvActiveCallStatus.text = "Idle: Monitoring for incoming telephony calls..."
                 tvActiveCallStatus.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
-                tvLastScreenedCall.text = "Last screened call: $number (Ended)"
-                logEvent("Call Idle: Telephony channel disconnected.")
+                tvLastScreenedCall.text = "Last call ended. Saved to History."
+                logEvent("Call Disconnected: IDLE state reached. Analysis finalized.")
             }
             CallStateManager.State.DISCONNECTED -> {
                 tvActiveCallStatus.text = "Call Disconnected"

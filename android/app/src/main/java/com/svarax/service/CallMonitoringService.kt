@@ -13,12 +13,28 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.svarax.MainActivity
+import com.svarax.alert.AlertManager
+import com.svarax.audio.AudioChunk
+import com.svarax.audio.MicrophoneAudioInput
 import com.svarax.call.CallStateManager
+import com.svarax.fraud.FraudDetector
+import com.svarax.fraud.FraudIndicator
+import com.svarax.history.CallHistoryRepository
+import com.svarax.history.CallRecord
+import com.svarax.risk.RiskEngine
+import com.svarax.risk.RiskResult
+import com.svarax.speech.AndroidSpeechToText
+import com.svarax.speech.DemoSpeechToText
+import com.svarax.speech.SpeechToText
+import com.svarax.voice.VoiceAnalysisResult
+import com.svarax.voice.VoiceAnalyzer
+import com.svarax.voice.VoiceAnalyzerImpl
+import java.util.UUID
 
 /**
- * Priority 4 & 5: Foreground Service for Active Call Monitoring.
- * Maintains process priority and persistent notification while a call is active.
- * Shuts down automatically when call returns to IDLE.
+ * Priority 5: Full-Lifecycle Active Call Monitoring & Analysis Service.
+ * Manages the audio capture, speech recognition, fraud detection, voice analysis,
+ * risk scoring, alerting, and history recording pipelines while a call is active.
  */
 class CallMonitoringService : Service() {
 
@@ -29,24 +45,54 @@ class CallMonitoringService : Service() {
 
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"
         const val EXTRA_STATE = "extra_state"
+        const val EXTRA_IS_DEMO = "extra_is_demo"
+
+        // Global live risk state accessible by LiveCallActivity / MainActivity
+        @Volatile
+        var currentRiskResult: RiskResult? = null
+            private set
+
+        @Volatile
+        var cumulativeTranscript: String = ""
+            private set
     }
 
     private var activePhoneNumber: String = "Unknown Caller"
+    private var isDemoMode: Boolean = false
+    private var callStartTime: Long = 0L
+
+    // Pipeline Modules
+    private lateinit var audioInput: MicrophoneAudioInput
+    private lateinit var speechToText: SpeechToText
+    private lateinit var fraudDetector: FraudDetector
+    private lateinit var voiceAnalyzer: VoiceAnalyzer
+    private lateinit var riskEngine: RiskEngine
+    private lateinit var alertManager: AlertManager
+    private lateinit var historyRepo: CallHistoryRepository
+
+    private val detectedIndicators = mutableListOf<FraudIndicator>()
+    private var latestVoiceResult: VoiceAnalysisResult? = null
 
     private val callStateListener: (CallStateManager.CallEvent) -> Unit = { event ->
         when (event.state) {
             CallStateManager.State.IDLE -> {
-                Log.i(TAG, "Call returned to IDLE. Stopping foreground monitoring service.")
+                Log.i(TAG, "Call ended (IDLE). Finalizing analysis and stopping service.")
+                finalizeAndSaveCall()
+                stopAnalysisPipeline()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
             CallStateManager.State.OFFHOOK -> {
-                updateNotification("Call Active - Monitoring Audio for Fraud Indicators", event.incomingNumber)
+                Log.i(TAG, "Call became active (OFFHOOK). Commencing real-time audio pipeline.")
+                startAnalysisPipeline()
+                updateNotification("Call Active: Analyzing Conversation for Fraud", activePhoneNumber, null)
             }
             CallStateManager.State.RINGING -> {
-                updateNotification("Incoming Call Screened: ${event.incomingNumber ?: "Unknown"}", event.incomingNumber)
+                updateNotification("Incoming Call Screened: ${event.incomingNumber ?: activePhoneNumber}", event.incomingNumber, null)
             }
             CallStateManager.State.DISCONNECTED -> {
+                finalizeAndSaveCall()
+                stopAnalysisPipeline()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
@@ -56,14 +102,35 @@ class CallMonitoringService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        // Initialize modules
+        audioInput = MicrophoneAudioInput()
+        fraudDetector = FraudDetector()
+        voiceAnalyzer = VoiceAnalyzerImpl()
+        riskEngine = RiskEngine()
+        alertManager = AlertManager(this)
+        historyRepo = CallHistoryRepository(this)
+
         CallStateManager.addListener(callStateListener)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val number = intent?.getStringExtra(EXTRA_PHONE_NUMBER) ?: activePhoneNumber
+        isDemoMode = intent?.getBooleanExtra(EXTRA_IS_DEMO, false) ?: false
         activePhoneNumber = number
+        callStartTime = System.currentTimeMillis()
 
-        val notification = buildNotification("Monitoring Active Call", "Protecting against fraud & scams")
+        speechToText = if (isDemoMode) {
+            DemoSpeechToText()
+        } else {
+            AndroidSpeechToText(this)
+        }
+
+        val notification = buildNotification(
+            "Svara_X Call Protection",
+            "Screening call: $activePhoneNumber | Shield Active"
+        )
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 NOTIFICATION_ID,
@@ -74,13 +141,117 @@ class CallMonitoringService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
+        // If service was launched while call is already OFFHOOK or in Demo mode, start pipeline immediately
+        if (CallStateManager.getCurrentState() == CallStateManager.State.OFFHOOK || isDemoMode) {
+            startAnalysisPipeline()
+        }
+
         return START_NOT_STICKY
+    }
+
+    private fun startAnalysisPipeline() {
+        if (callStartTime == 0L) callStartTime = System.currentTimeMillis()
+        cumulativeTranscript = ""
+        detectedIndicators.clear()
+        voiceAnalyzer.reset()
+
+        // 1. Start audio input (Microphone) if not in demo mode
+        if (!isDemoMode) {
+            audioInput.start { chunk: AudioChunk ->
+                // Feed acoustic analyzer
+                latestVoiceResult = voiceAnalyzer.processChunk(chunk)
+                // Stream to speech recognizer if needed
+                speechToText.processAudioChunk(chunk)
+            }
+        }
+
+        // 2. Start Speech-to-Text
+        speechToText.start(
+            onTranscript = { chunk ->
+                handleNewTranscriptChunk(chunk.text)
+            },
+            onError = { errorMsg ->
+                Log.w(TAG, "STT Warning: $errorMsg")
+            }
+        )
+    }
+
+    private fun handleNewTranscriptChunk(newText: String) {
+        if (newText.isBlank()) return
+
+        cumulativeTranscript = if (cumulativeTranscript.isBlank()) {
+            newText
+        } else {
+            "$cumulativeTranscript $newText"
+        }
+
+        Log.d(TAG, "Transcript chunk received: $newText")
+
+        // 3. Fraud Detection
+        val newIndicators = fraudDetector.analyze(cumulativeTranscript)
+        for (ind in newIndicators) {
+            if (!detectedIndicators.any { it.category == ind.category }) {
+                detectedIndicators.add(ind)
+            }
+        }
+
+        // 4. Evaluate in Risk Engine
+        val riskResult = riskEngine.evaluate(
+            indicators = detectedIndicators,
+            voiceResult = latestVoiceResult,
+            isDemo = isDemoMode
+        )
+        currentRiskResult = riskResult
+
+        // 5. Dispatch Alerts & Notifications
+        alertManager.dispatchAlert(riskResult, activePhoneNumber)
+
+        // 6. Update Foreground Notification
+        val notificationTitle = when (riskResult.riskLevel) {
+            "CRITICAL" -> "🚨 CRITICAL FRAUD ALERT (${riskResult.riskScore}%)"
+            "HIGH" -> "⚠ HIGH FRAUD RISK (${riskResult.riskScore}%)"
+            "MEDIUM" -> "Caution: Suspicious Pattern (${riskResult.riskScore}%)"
+            else -> "Call Active: Monitoring for Scams"
+        }
+        updateNotification(notificationTitle, activePhoneNumber, riskResult)
+    }
+
+    private fun stopAnalysisPipeline() {
+        try {
+            audioInput.stop()
+            speechToText.stop()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping audio/STT pipeline", e)
+        }
+    }
+
+    private fun finalizeAndSaveCall() {
+        val duration = ((System.currentTimeMillis() - callStartTime) / 1000).toInt().coerceAtLeast(1)
+        val finalResult = currentRiskResult ?: riskEngine.evaluate(emptyList(), latestVoiceResult, isDemoMode)
+
+        val record = CallRecord(
+            id = UUID.randomUUID().toString(),
+            timestamp = System.currentTimeMillis(),
+            callerNumber = activePhoneNumber,
+            durationSeconds = duration,
+            finalRiskScore = finalResult.riskScore,
+            riskLevel = finalResult.riskLevel,
+            detectedIndicators = finalResult.indicators,
+            recommendation = finalResult.recommendation,
+            fullTranscriptSnippet = cumulativeTranscript.take(500),
+            isDemoSimulation = isDemoMode
+        )
+
+        historyRepo.saveRecord(record)
+        currentRiskResult = null
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        stopAnalysisPipeline()
         CallStateManager.removeListener(callStateListener)
-        Log.i(TAG, "CallMonitoringService destroyed.")
+        alertManager.clearAlerts()
+        Log.i(TAG, "CallMonitoringService destroyed")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -92,7 +263,7 @@ class CallMonitoringService : Service() {
                 "Svara_X Call Protection",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Shows real-time fraud warning and active call protection status."
+                description = "Shows active call protection status and in-call fraud warnings."
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
@@ -117,9 +288,13 @@ class CallMonitoringService : Service() {
             .build()
     }
 
-    private fun updateNotification(title: String, phoneNumber: String?) {
+    private fun updateNotification(title: String, phoneNumber: String?, result: RiskResult?) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val content = if (phoneNumber != null) "Caller: $phoneNumber | Svara_X Shield Active" else "Shield Active"
+        val content = if (result != null && result.riskLevel != "LOW") {
+            "${result.riskLevel} (${result.riskScore}%): ${result.recommendation}"
+        } else {
+            "Caller: ${phoneNumber ?: "Active Call"} | Svara_X Shield Active"
+        }
         manager.notify(NOTIFICATION_ID, buildNotification(title, content))
     }
 }
