@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Svara_X</string>
+    <string name="app_tagline">AI Real-Time Fraud Call Protection</string>
+    <string name="protection_active">PROTECTION: ACTIVE</string>
+    <string name="protection_inactive">PROTECTION: INACTIVE</string>
+    <string name="call_screening_title">Call Screening Role</string>
+    <string name="call_screening_desc">Required to intercept incoming call events without delay</string>
+    <string name="perm_telephony">Phone &amp; State Permission</string>
+    <string name="perm_mic">Microphone (Speakerphone Pipeline)</string>
+    <string name="perm_notifications">Real-Time Alert Notifications</string>
+    <string name="perm_overlay">In-Call Warning Overlay (Optional)</string>
+    <string name="btn_enable_protection">Enable Protection</string>
+    <string name="btn_grant_permissions">Grant All Permissions</string>
+    <string name="btn_request_screening">Set as Default Call Screening</string>
+    <string name="btn_test_call">Simulate Incoming Scam Call</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_missing">Action Needed</string>
+</resources>
