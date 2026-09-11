@@ -62,12 +62,7 @@ class CallHistoryRepository(context: Context) {
 
     @Synchronized
     fun getAllRecords(): List<CallRecord> {
-        val raw = prefs.getString(KEY_RECORDS, null)
-        if (raw == null) {
-            val defaults = createDefaultAuditRecords()
-            defaults.forEach { saveRecord(it) }
-            return defaults
-        }
+        val raw = prefs.getString(KEY_RECORDS, null) ?: return emptyList()
         val list = mutableListOf<CallRecord>()
 
         try {

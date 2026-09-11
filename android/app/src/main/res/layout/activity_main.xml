@@ -1,44 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/mainCoordinator"
+    android:id="@+id/mainRootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/surface_dark">
+    android:background="@color/surface_dark"
+    android:orientation="vertical">
 
+    <!-- Scrollable Content Area -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:paddingHorizontal="20dp"
+            android:paddingTop="24dp"
+            android:paddingBottom="20dp">
 
-            <!-- App Header -->
+            <!-- Top Header -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="20dp">
 
                 <ImageView
                     android:id="@+id/imgAppLogo"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
                     android:src="@drawable/ic_shield_check"
-                    android:contentDescription="SvaraX Logo" />
+                    android:contentDescription="Svara_X" />
 
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_marginStart="12dp"
+                    android:layout_marginStart="14dp"
                     android:orientation="vertical">
 
                     <TextView
@@ -54,245 +59,95 @@
                         android:id="@+id/tvAppSubtitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="AI Real-Time Fraud Call Protection"
+                        android:text="AI Call Protection"
                         android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
+                        android:textSize="13sp" />
                 </LinearLayout>
 
-                <Button
-                    android:id="@+id/btnViewHistory"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="History"
-                    android:textSize="12sp" />
-
-                <Button
-                    android:id="@+id/btnOpenSettings"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="Settings"
-                    android:textSize="12sp" />
+                <ImageButton
+                    android:id="@+id/btnQuickSettings"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_settings"
+                    android:contentDescription="Settings" />
             </LinearLayout>
 
-            <!-- Main Protection Status Card -->
+            <!-- Main Status Card (Hero) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardProtectionStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="20dp"
                 app:cardBackgroundColor="@color/surface_card"
-                app:cardCornerRadius="14dp"
-                app:strokeColor="@color/shield_active_glow"
+                app:cardCornerRadius="16dp"
+                app:strokeColor="@color/accent_green"
                 app:strokeWidth="1.5dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:id="@+id/tvProtectionLabel"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="PROTECTION STATUS"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp"
-                            android:letterSpacing="0.08" />
-
-                        <TextView
-                            android:id="@+id/tvProtectionStatusBadge"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🟢 ACTIVE"
-                            android:textColor="@color/accent_green"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvActiveCallStatus"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="Idle: Monitoring for incoming telephony calls..."
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:id="@+id/tvLastScreenedCall"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="No active calls detected"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Hackathon Demonstration Hub (Priorities 5, 6, 7, 8, 9, 14, 18) -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="LIVE DEMO &amp; ACTIVE CALL CONTROLS"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.06"
-                android:layout_marginBottom="8dp" />
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/surface_card"
-                app:cardCornerRadius="14dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Priority 6 &amp; 18: Multi-Stage Bank OTP Scam Demo"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Streams sequential scam conversation: Bank impersonation → Account threat → Urgent OTP request. Calculates live risk 0% → 94%."
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <Button
-                        android:id="@+id/btnStartDemoScam"
-                        android:layout_width="match_parent"
-                        android:layout_height="50dp"
-                        android:layout_marginTop="12dp"
-                        android:text="▶ Run Multi-Stage Scam Simulation"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <Button
-                        android:id="@+id/btnOpenLiveCallUI"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="8dp"
-                        android:text="Open In-Call Risk Warning Screen"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
-
-                    <Button
-                        android:id="@+id/btnStopDemoCall"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
-                        android:layout_marginTop="4dp"
-                        android:text="End Active Simulation Call"
-                        android:textColor="@color/accent_red"
-                        android:textSize="12sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Priority 3: Role & Permission Checklist -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="SYSTEM SETUP &amp; PERMISSIONS"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.06"
-                android:layout_marginBottom="8dp" />
-
-            <!-- Call Screening Role Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardCallScreeningRole"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                app:cardBackgroundColor="@color/surface_card"
-                app:cardCornerRadius="12dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:padding="14dp">
+                    android:gravity="center_horizontal"
+                    android:padding="24dp">
 
                     <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_phone_call"
-                        android:contentDescription="Call Screening" />
+                        android:id="@+id/imgStatusShield"
+                        android:layout_width="68dp"
+                        android:layout_height="68dp"
+                        android:src="@drawable/ic_shield_check"
+                        android:contentDescription="Shield Status" />
 
-                    <LinearLayout
-                        android:layout_width="0dp"
+                    <TextView
+                        android:id="@+id/tvProtectionTitle"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="12dp"
-                        android:orientation="vertical">
+                        android:layout_marginTop="16dp"
+                        android:text="PROTECTION ACTIVE"
+                        android:textColor="@color/text_primary"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.04" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Call Screening Service Role"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvScreeningDesc"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Android RoleManager interception hook"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
-                    </LinearLayout>
+                    <TextView
+                        android:id="@+id/tvProtectionDescription"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:text="Automatic protection is enabled."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
 
                     <Button
-                        android:id="@+id/btnSetScreeningRole"
+                        android:id="@+id/btnResolvePermissions"
                         style="@style/Widget.Material3.Button.TonalButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Enable"
-                        android:textSize="12sp" />
+                        android:layout_marginTop="14dp"
+                        android:text="Enable Full Protection"
+                        android:textSize="13sp"
+                        android:visibility="gone" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Permissions Status Section -->
+            <!-- Active Call In-Progress Card (Shows when a call is active or ringing) -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardPermissionsSummary"
+                android:id="@+id/cardActiveLiveCall"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="20dp"
                 app:cardBackgroundColor="@color/surface_card"
-                app:cardCornerRadius="12dp">
+                app:cardCornerRadius="14dp"
+                app:strokeColor="@color/accent_amber"
+                app:strokeWidth="1.5dp"
+                android:visibility="gone">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="14dp">
+                    android:padding="16dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -300,67 +155,285 @@
                         android:orientation="horizontal"
                         android:gravity="center_vertical">
 
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_phone_call"
+                            android:contentDescription="Active Call" />
+
                         <TextView
+                            android:id="@+id/tvActiveCallBannerTitle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="READ_PHONE_STATE, RECORD_AUDIO, POST_NOTIFICATIONS"
-                            android:textColor="@color/text_primary"
-                            android:textSize="12sp" />
+                            android:layout_marginStart="10dp"
+                            android:text="LIVE CALL IN PROGRESS"
+                            android:textColor="@color/accent_amber"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.06" />
 
                         <TextView
-                            android:id="@+id/badgeAllPerms"
+                            android:id="@+id/tvActiveCallLiveScore"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Granted"
-                            android:textColor="@color/accent_green"
+                            android:text="Monitoring..."
+                            android:textColor="@color/text_primary"
                             android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <Button
-                        android:id="@+id/btnGrantAllPermissions"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
+                    <TextView
+                        android:id="@+id/tvActiveCallNumber"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Review &amp; Grant Permissions"
+                        android:text="+91 98765 43210"
                         android:textColor="@color/text_primary"
-                        android:textSize="12sp" />
+                        android:textSize="16sp"
+                        android:fontFamily="monospace"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnOpenActiveLiveCallUI"
+                        style="@style/Widget.Material3.Button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="Open Live Scam Shield"
+                        android:textSize="13sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Real-time Call Event Live Log (Priority 4 Verification) -->
+            <!-- Security Status Section -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="REAL-TIME TELEPHONY &amp; PIPELINE LOGS"
+                android:layout_marginBottom="12dp"
+                android:text="SECURITY STATUS"
                 android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.06"
-                android:layout_marginBottom="8dp" />
+                android:textSize="11sp"
+                android:letterSpacing="0.1"
+                android:textStyle="bold" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
+                android:layout_marginBottom="20dp"
                 app:cardBackgroundColor="@color/surface_card"
-                app:cardCornerRadius="12dp">
+                app:cardCornerRadius="14dp"
+                app:strokeColor="@color/border_subtle"
+                app:strokeWidth="1dp">
 
-                <TextView
-                    android:id="@+id/tvTelephonyLogs"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:minHeight="100dp"
-                    android:padding="14dp"
-                    android:fontFamily="monospace"
-                    android:text="[INIT] CallScreeningService registered.\n[INIT] CallStateManager active.\n[INIT] RiskEngine &amp; FraudDetector loaded.\nWaiting for incoming call or demo trigger..."
-                    android:textColor="#38BDF8"
-                    android:textSize="12sp" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Status Item 1: Call Protection -->
+                    <LinearLayout
+                        android:id="@+id/rowCallProtection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <TextView
+                            android:id="@+id/iconStatusCallProtection"
+                            android:layout_width="24dp"
+                            android:layout_height="wrap_content"
+                            android:text="✓"
+                            android:textColor="@color/accent_green"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Call protection"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvSubCallProtection"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Call screening intercepts incoming telecom calls"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/border_subtle" />
+
+                    <!-- Status Item 2: Fraud Detection -->
+                    <LinearLayout
+                        android:id="@+id/rowFraudDetection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <TextView
+                            android:id="@+id/iconStatusFraudDetection"
+                            android:layout_width="24dp"
+                            android:layout_height="wrap_content"
+                            android:text="✓"
+                            android:textColor="@color/accent_green"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Fraud detection"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvSubFraudDetection"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="On-device NLP scam pattern recognition across 14 categories"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/border_subtle" />
+
+                    <!-- Status Item 3: Alerts -->
+                    <LinearLayout
+                        android:id="@+id/rowAlerts"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <TextView
+                            android:id="@+id/iconStatusAlerts"
+                            android:layout_width="24dp"
+                            android:layout_height="wrap_content"
+                            android:text="✓"
+                            android:textColor="@color/accent_green"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Alerts"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvSubAlerts"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Instant heads-up warnings &amp; sensory vibration signals"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            <!-- Recent Activity Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="RECENT ACTIVITY"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btnViewAllRecent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="View All"
+                    android:textColor="@color/accent_green"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:padding="4dp" />
+            </LinearLayout>
+
+            <!-- Dynamic Recent Activity Container -->
+            <LinearLayout
+                android:id="@+id/containerRecentActivity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Placeholder Empty State -->
+                <TextView
+                    android:id="@+id/tvNoRecentActivity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@color/surface_card"
+                    android:padding="20dp"
+                    android:text="No analyzed calls yet.\nSvara_X will automatically scan incoming calls."
+                    android:textAlignment="center"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+    <!-- Clean Bottom Navigation Bar -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigationView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface_card"
+        app:itemIconTint="@color/text_primary"
+        app:itemTextColor="@color/text_primary"
+        app:elevation="8dp"
+        app:menu="@menu/bottom_nav_menu" />
+
+</LinearLayout>
