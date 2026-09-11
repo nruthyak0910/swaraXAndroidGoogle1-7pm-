@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { CellularCallAudioCapabilityDiagnostic } from './components/CellularCallAudioCapabilityDiagnostic';
 import {
   Shield,
   ShieldCheck,
@@ -1194,6 +1195,9 @@ signalDetected=${ref.hasSignal}`);
                 </div>
               </div>
             </div>
+
+            {/* ================= CARD 3: CELLULAR CALL AUDIO CAPABILITY DIAGNOSTIC ================= */}
+            <CellularCallAudioCapabilityDiagnostic />
 
             {/* TECHNICAL DISCLOSURE */}
             <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-800/40 text-xs text-amber-200/90 leading-relaxed space-y-1">
