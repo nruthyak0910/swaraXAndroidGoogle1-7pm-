@@ -86,6 +86,10 @@ class MicrophoneAudioInput : AudioInput {
                 lastErrorMessage = "AudioRecord failed to initialize (state != STATE_INITIALIZED)"
                 currentState = AudioInputState.UNAVAILABLE
                 Log.e(TAG, "AudioRecord initialized: FAILED ($lastErrorMessage)")
+                try {
+                    audioRecord?.release()
+                } catch (ignored: Exception) {}
+                audioRecord = null
                 return
             }
 
@@ -96,6 +100,13 @@ class MicrophoneAudioInput : AudioInput {
                 lastErrorMessage = "AudioRecord failed to enter RECORDSTATE_RECORDING"
                 currentState = AudioInputState.ERROR
                 Log.e(TAG, "AudioRecord started: FAILED")
+                try {
+                    audioRecord?.stop()
+                } catch (ignored: Exception) {}
+                try {
+                    audioRecord?.release()
+                } catch (ignored: Exception) {}
+                audioRecord = null
                 return
             }
 
@@ -177,6 +188,17 @@ class MicrophoneAudioInput : AudioInput {
             currentState = AudioInputState.ERROR
             Log.e(TAG, "Exception starting AudioRecord", e)
             isRecording.set(false)
+            try {
+                audioRecord?.stop()
+            } catch (ignored: Exception) {}
+            try {
+                audioRecord?.release()
+            } catch (ignored: Exception) {}
+            audioRecord = null
+            try {
+                recordingThread?.interrupt()
+            } catch (ignored: Exception) {}
+            recordingThread = null
         }
     }
 

@@ -312,6 +312,9 @@ class CellularCallAudioCapabilityTester(private val context: Context) {
             Log.e(TAG, "Exception while probing $sourceName", e)
         } finally {
             try {
+                audioRecord?.stop()
+            } catch (ignored: Exception) {}
+            try {
                 audioRecord?.release()
             } catch (ignored: Exception) {}
         }

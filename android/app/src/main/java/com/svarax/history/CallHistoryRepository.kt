@@ -26,8 +26,8 @@ class CallHistoryRepository(context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     @Synchronized
-    fun saveRecord(record: CallRecord) {
-        try {
+    fun saveRecord(record: CallRecord): Boolean {
+        return try {
             val existing = getAllRecords().toMutableList()
             // Prepend newest record
             existing.add(0, record)
@@ -56,12 +56,55 @@ class CallHistoryRepository(context: Context) {
                 jsonArray.put(obj)
             }
 
-            prefs.edit().putString(KEY_RECORDS, jsonArray.toString()).apply()
-            Log.i(TAG, "Call record saved: id=${record.id}, caller=${record.callerNumber}, score=${record.finalRiskScore}%, isDemo=${record.isDemoSimulation}")
+            val success = prefs.edit().putString(KEY_RECORDS, jsonArray.toString()).commit()
+            Log.i(TAG, "Call record saved: id=${record.id}, caller=${record.callerNumber}, score=${record.finalRiskScore}%, isDemo=${record.isDemoSimulation}, success=$success")
+            success
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save call record", e)
+            false
         }
     }
+
+    @Synchronized
+    fun deleteRecord(id: String): Boolean {
+        return try {
+            val existing = getAllRecords().toMutableList()
+            val removed = existing.removeAll { it.id == id }
+            if (!removed) return false
+
+            val jsonArray = JSONArray()
+            for (item in existing) {
+                val obj = JSONObject().apply {
+                    put("id", item.id)
+                    put("timestamp", item.timestamp)
+                    put("callerNumber", item.callerNumber)
+                    put("durationSeconds", item.durationSeconds)
+                    put("finalRiskScore", item.finalRiskScore)
+                    put("riskLevel", item.riskLevel)
+                    put("recommendation", item.recommendation)
+                    put("fullTranscriptSnippet", item.fullTranscriptSnippet)
+                    put("isDemoSimulation", item.isDemoSimulation)
+
+                    val indArray = JSONArray()
+                    for (ind in item.detectedIndicators) {
+                        indArray.put(ind)
+                    }
+                    put("detectedIndicators", indArray)
+                }
+                jsonArray.put(obj)
+            }
+
+            val success = prefs.edit().putString(KEY_RECORDS, jsonArray.toString()).commit()
+            Log.i(TAG, "Call record deleted: id=$id, success=$success")
+            success
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete call record", e)
+            false
+        }
+    }
+
+    @Synchronized
+    fun getCalls(): List<CallRecord> = getAllRecords()
 
     @Synchronized
     fun getAllRecords(): List<CallRecord> {
