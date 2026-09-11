@@ -7,14 +7,17 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Priority 12: Lightweight local history repository.
- * Persists recent call assessments locally for audit and hackathon demonstration.
+ * CallHistoryRepository: Local persistence for analyzed call records.
+ *
+ * Strictly prevents unprompted population of fabricated historical calls.
+ * Default history returns an empty list ("No analyzed calls yet") until real
+ * calls or explicit user-requested demo seeds are logged.
  */
 class CallHistoryRepository(context: Context) {
 
     companion object {
         private const val TAG = "SvaraX_HistoryRepo"
-        private const val PREFS_NAME = "svara_call_history_prefs"
+        private const val PREFS_NAME = "svara_call_history_prefs_v2"
         private const val KEY_RECORDS = "key_history_records"
         private const val MAX_RECORDS = 50
     }
@@ -26,7 +29,7 @@ class CallHistoryRepository(context: Context) {
     fun saveRecord(record: CallRecord) {
         try {
             val existing = getAllRecords().toMutableList()
-            // Add new record at top
+            // Prepend newest record
             existing.add(0, record)
 
             val trimmed = if (existing.size > MAX_RECORDS) existing.take(MAX_RECORDS) else existing
@@ -54,7 +57,7 @@ class CallHistoryRepository(context: Context) {
             }
 
             prefs.edit().putString(KEY_RECORDS, jsonArray.toString()).apply()
-            Log.i(TAG, "Call record saved: id=${record.id}, score=${record.finalRiskScore}%")
+            Log.i(TAG, "Call record saved: id=${record.id}, caller=${record.callerNumber}, score=${record.finalRiskScore}%, isDemo=${record.isDemoSimulation}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save call record", e)
         }
@@ -99,13 +102,18 @@ class CallHistoryRepository(context: Context) {
         return list
     }
 
-    private fun createDefaultAuditRecords(): List<CallRecord> {
+    /**
+     * Seeds sample records strictly when explicitly requested via Settings -> Demo & Testing.
+     * Every record is clearly marked [DEMO] and isDemoSimulation = true.
+     */
+    @Synchronized
+    fun seedDemoAuditRecords() {
         val now = System.currentTimeMillis()
-        return listOf(
+        val demoRecords = listOf(
             CallRecord(
-                id = "audit-rec-1",
-                timestamp = now - 1000L * 60 * 25, // 25 mins ago
-                callerNumber = "+91 98230 11942",
+                id = "demo-rec-1",
+                timestamp = now - 1000L * 60 * 25,
+                callerNumber = "[DEMO] +91 98230 11942",
                 durationSeconds = 64,
                 finalRiskScore = 95,
                 riskLevel = "CRITICAL",
@@ -116,25 +124,25 @@ class CallHistoryRepository(context: Context) {
                     "OTP request detected"
                 ),
                 recommendation = "DO NOT SHARE OTP OR PIN! HANG UP IMMEDIATELY. OFFICIAL BANKS NEVER ASK FOR PASSWORDS.",
-                fullTranscriptSnippet = "I am calling from your bank branch security desk. Your account will be blocked within ten minutes. Please tell me the OTP you just received.",
+                fullTranscriptSnippet = "[Simulated Demo] I am calling from your bank branch security desk. Your account will be blocked within ten minutes. Please tell me the OTP you just received.",
                 isDemoSimulation = true
             ),
             CallRecord(
-                id = "audit-rec-2",
-                timestamp = now - 1000L * 60 * 60 * 3, // 3 hours ago
-                callerNumber = "+91 98450 44321",
+                id = "demo-rec-2",
+                timestamp = now - 1000L * 60 * 60 * 3,
+                callerNumber = "[DEMO] +91 98450 44321",
                 durationSeconds = 120,
-                finalRiskScore = 12,
+                finalRiskScore = 5,
                 riskLevel = "LOW",
                 detectedIndicators = emptyList(),
                 recommendation = "No immediate fraud pattern detected. Maintain standard vigilance.",
-                fullTranscriptSnippet = "Hi Dad, just checking if you reached home safely. Let me know when you are free for dinner.",
-                isDemoSimulation = false
+                fullTranscriptSnippet = "[Simulated Demo] Hi Dad, just checking if you reached home safely. Let me know when you are free for dinner.",
+                isDemoSimulation = true
             ),
             CallRecord(
-                id = "audit-rec-3",
-                timestamp = now - 1000L * 60 * 60 * 24, // yesterday
-                callerNumber = "+91 80001 23456",
+                id = "demo-rec-3",
+                timestamp = now - 1000L * 60 * 60 * 24,
+                callerNumber = "[DEMO] +91 80001 23456",
                 durationSeconds = 85,
                 finalRiskScore = 78,
                 riskLevel = "HIGH",
@@ -143,14 +151,20 @@ class CallHistoryRepository(context: Context) {
                     "Urgent KYC update demand"
                 ),
                 recommendation = "DO NOT INSTALL ANY SCREEN-SHARING APP! DISCONNECT THE CALL NOW.",
-                fullTranscriptSnippet = "Your KYC has expired. Download AnyDesk immediately so our representative can assist your verification.",
+                fullTranscriptSnippet = "[Simulated Demo] Your KYC has expired. Download AnyDesk immediately so our representative can assist your verification.",
                 isDemoSimulation = true
             )
         )
+
+        for (rec in demoRecords) {
+            saveRecord(rec)
+        }
+        Log.i(TAG, "Sample [DEMO] audit records seeded for testing")
     }
 
     @Synchronized
     fun clearHistory() {
         prefs.edit().remove(KEY_RECORDS).apply()
+        Log.i(TAG, "Call history cleared cleanly")
     }
 }

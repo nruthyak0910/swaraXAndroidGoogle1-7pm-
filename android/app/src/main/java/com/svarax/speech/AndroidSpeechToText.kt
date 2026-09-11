@@ -9,12 +9,17 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
-import com.svarax.audio.AudioChunk
 import java.util.Locale
 
 /**
- * Priority 10: Native Android Speech-to-Text Implementation.
- * Uses Android SpeechRecognizer to transcribe speakerphone audio during controlled live calls.
+ * AndroidSpeechToText: Native Android SpeechRecognizer STT Implementation.
+ *
+ * ARCHITECTURAL NOTICE:
+ * Android's built-in SpeechRecognizer (Google Speech Services / On-Device Speech Recognizer)
+ * manages its own internal OS audio capture session (MediaRecorder.AudioSource.VOICE_RECOGNITION).
+ * It DOES NOT accept raw AudioRecord PCM buffers.
+ *
+ * Therefore, [consumesPcmDirectly] is explicitly FALSE.
  */
 class AndroidSpeechToText(private val context: Context) : SpeechToText {
 
@@ -22,11 +27,18 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
         private const val TAG = "SvaraX_AndroidSTT"
     }
 
+    override val engineName: String = "Android System SpeechRecognizer"
+    override val consumesPcmDirectly: Boolean = false
+
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var callback: ((TranscriptChunk) -> Unit)? = null
     private var errorCallback: ((String) -> Unit)? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    override fun isAvailable(): Boolean {
+        return SpeechRecognizer.isRecognitionAvailable(context)
+    }
 
     override fun start(onTranscript: (TranscriptChunk) -> Unit, onError: (String) -> Unit) {
         if (isListening) return
@@ -36,7 +48,7 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
         mainHandler.post {
             try {
                 if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-                    Log.w(TAG, "SpeechRecognizer is not available on this device")
+                    Log.w(TAG, "SpeechRecognizer is not available on this Android device")
                     errorCallback?.invoke("Native speech recognition service unavailable")
                     return@post
                 }
@@ -54,17 +66,12 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
 
                 speechRecognizer?.startListening(intent)
                 isListening = true
-                Log.i(TAG, "SpeechRecognizer listening started")
+                Log.i(TAG, "SpeechRecognizer listening started via system recognition intent")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start speech recognition", e)
                 errorCallback?.invoke("Failed to start speech recognition: ${e.message}")
             }
         }
-    }
-
-    override fun processAudioChunk(chunk: AudioChunk) {
-        // Native SpeechRecognizer listens via audio record session;
-        // AudioChunk can also be routed to streaming backend if required.
     }
 
     override fun stop() {
@@ -75,7 +82,7 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
                 speechRecognizer?.stopListening()
                 speechRecognizer?.destroy()
                 speechRecognizer = null
-                Log.i(TAG, "SpeechRecognizer stopped")
+                Log.i(TAG, "SpeechRecognizer stopped and resources released")
             } catch (e: Exception) {
                 Log.e(TAG, "Error stopping speech recognition", e)
             }
@@ -86,11 +93,21 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
 
     private fun createListener(): RecognitionListener {
         return object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
+            override fun onReadyForSpeech(params: Bundle?) {
+                Log.d(TAG, "SpeechRecognizer: onReadyForSpeech")
+            }
+
+            override fun onBeginningOfSpeech() {
+                Log.d(TAG, "SpeechRecognizer: onBeginningOfSpeech")
+            }
+
             override fun onRmsChanged(rmsdB: Float) {}
+
             override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
+
+            override fun onEndOfSpeech() {
+                Log.d(TAG, "SpeechRecognizer: onEndOfSpeech")
+            }
 
             override fun onError(error: Int) {
                 Log.w(TAG, "SpeechRecognizer error code: $error")
@@ -99,16 +116,16 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
                     restartListening()
                 } else {
                     val msg = when (error) {
-                        SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                        SpeechRecognizer.ERROR_AUDIO -> "Audio recording conflict / mic unavailable during call"
                         SpeechRecognizer.ERROR_CLIENT -> "Client error"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient permissions"
-                        SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient audio permissions"
+                        SpeechRecognizer.ERROR_NETWORK -> "Network connection required for recognition"
                         SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "No speech match"
+                        SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognized"
                         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
                         SpeechRecognizer.ERROR_SERVER -> "Server error"
                         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
-                        else -> "Unknown error ($error)"
+                        else -> "SpeechRecognizer error ($error)"
                     }
                     errorCallback?.invoke(msg)
                 }
@@ -118,6 +135,7 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
                     val text = matches[0]
+                    Log.i(TAG, "SpeechRecognizer recognized text (final): \"$text\"")
                     callback?.invoke(TranscriptChunk(text = text, isFinal = true))
                 }
                 if (isListening) {
@@ -129,6 +147,7 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
                 val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
                     val text = matches[0]
+                    Log.d(TAG, "SpeechRecognizer partial text: \"$text\"")
                     callback?.invoke(TranscriptChunk(text = text, isFinal = false))
                 }
             }

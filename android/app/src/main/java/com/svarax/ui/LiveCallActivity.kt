@@ -21,8 +21,11 @@ import com.svarax.risk.RiskResult
 import com.svarax.service.CallMonitoringService
 
 /**
- * Priority 12 & 14: Dedicated In-Call Live Fraud Warning UI.
- * Provides accessible, high-contrast risk meter and real-time scam pattern updates.
+ * LiveCallActivity: Dedicated In-Call Fraud Warning Screen.
+ *
+ * Provides real-time risk score, acoustic signals, and fraud indicators.
+ * If cellular audio capture is blocked by Android security restrictions,
+ * accurately states "Live call audio unavailable on this device."
  */
 class LiveCallActivity : AppCompatActivity() {
 
@@ -77,7 +80,10 @@ class LiveCallActivity : AppCompatActivity() {
         pulseLiveDot = findViewById(R.id.pulseLiveDot)
         imgPhoneIcon = findViewById(R.id.imgLivePhoneIcon)
 
-        val caller = intent.getStringExtra("caller_number") ?: "+91 98765 43210"
+        val caller = intent.getStringExtra("caller_number")
+            ?: CallMonitoringService.activeCallerNumber.takeIf { it.isNotBlank() && it != "Unknown caller" }
+            ?: CallStateManager.getLastIncomingNumber()
+            ?: "Unknown caller"
         tvCallerNumber.text = caller
     }
 
@@ -94,7 +100,7 @@ class LiveCallActivity : AppCompatActivity() {
     }
 
     private fun startLivePulse() {
-        val pulse = ObjectAnimator.ofPropertyValuesHolder(
+        ObjectAnimator.ofPropertyValuesHolder(
             pulseLiveDot,
             PropertyValuesHolder.ofFloat("scaleX", 1f, 1.4f, 1f),
             PropertyValuesHolder.ofFloat("scaleY", 1f, 1.4f, 1f),
@@ -109,13 +115,46 @@ class LiveCallActivity : AppCompatActivity() {
     private fun updateLiveUI() {
         val currentRisk = CallMonitoringService.currentRiskResult
         val transcript = CallMonitoringService.cumulativeTranscript
+        val isLiveUnavailable = CallMonitoringService.isLiveAudioUnavailable
+        val isDemo = CallMonitoringService.isDemoModeActive
 
-        if (transcript.isNotBlank()) {
-            tvLiveTranscript.text = transcript
+        // Update caller number if service detected one
+        if (CallMonitoringService.activeCallerNumber.isNotBlank() && CallMonitoringService.activeCallerNumber != "Unknown caller") {
+            tvCallerNumber.text = CallMonitoringService.activeCallerNumber
         }
 
-        if (currentRisk != null) {
-            renderRiskState(currentRisk)
+        if (isLiveUnavailable && !isDemo && transcript.isBlank()) {
+            tvLiveTranscript.text = "Live call audio unavailable on this device."
+            tvLiveRecommendation.text = "Android OS isolates cellular downlink audio for privacy. Svara_X will not fabricate fake live transcripts."
+            tvRiskPercentage.text = "--"
+            tvRiskLevelBadge.text = "UNVERIFIED"
+            val mutedColor = ContextCompat.getColor(this, R.color.text_secondary)
+            tvRiskPercentage.setTextColor(mutedColor)
+            tvRiskLevelBadge.setTextColor(mutedColor)
+            cardRiskMeter.strokeColor = mutedColor
+            pbRiskScore.progress = 0
+            containerIndicatorsList.removeAllViews()
+            tvNoIndicatorsPlaceholder.visibility = View.VISIBLE
+            tvNoIndicatorsPlaceholder.text = "Live call audio capture is blocked by Android cellular isolation."
+            containerIndicatorsList.addView(tvNoIndicatorsPlaceholder)
+        } else {
+            if (transcript.isNotBlank()) {
+                tvLiveTranscript.text = transcript
+            } else {
+                tvLiveTranscript.text = if (isDemo) "Initializing simulated scam dialogue..." else "Listening for speech audio..."
+            }
+
+            if (currentRisk != null) {
+                renderRiskState(currentRisk)
+            } else {
+                tvRiskPercentage.text = "5%"
+                tvRiskLevelBadge.text = "LOW RISK"
+                val greenColor = ContextCompat.getColor(this, R.color.accent_green)
+                tvRiskPercentage.setTextColor(greenColor)
+                tvRiskLevelBadge.setTextColor(greenColor)
+                cardRiskMeter.strokeColor = greenColor
+                pbRiskScore.progress = 5
+            }
         }
     }
 
@@ -141,6 +180,7 @@ class LiveCallActivity : AppCompatActivity() {
         // Populate Indicators list
         if (risk.indicators.isEmpty()) {
             tvNoIndicatorsPlaceholder.visibility = View.VISIBLE
+            tvNoIndicatorsPlaceholder.text = "No suspicious patterns detected yet"
             containerIndicatorsList.removeAllViews()
             containerIndicatorsList.addView(tvNoIndicatorsPlaceholder)
         } else {

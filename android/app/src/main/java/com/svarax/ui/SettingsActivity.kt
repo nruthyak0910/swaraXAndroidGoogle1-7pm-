@@ -21,8 +21,8 @@ import com.svarax.service.CallMonitoringService
 
 /**
  * SettingsActivity: Allows configuring Scam Protection settings,
- * triggering controlled demo scam simulations for verification,
- * inspecting active Android permissions, and clearing audit history.
+ * launching Physical Device Diagnostics, triggering controlled demo scam simulations,
+ * inspecting active Android permissions, and managing audit history.
  */
 class SettingsActivity : AppCompatActivity() {
 
@@ -32,9 +32,11 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private lateinit var btnBackSettings: ImageButton
+    private lateinit var btnOpenDiagnostics: Button
     private lateinit var switchDemoMode: Switch
     private lateinit var btnRunDemoSimulation: Button
     private lateinit var btnStopDemoSimulation: Button
+    private lateinit var btnSeedDemoHistory: Button
     private lateinit var tvSettingsPhoneStatus: TextView
     private lateinit var tvSettingsMicStatus: TextView
     private lateinit var tvSettingsNotificationStatus: TextView
@@ -48,9 +50,11 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
 
         btnBackSettings = findViewById(R.id.btnBackSettings)
+        btnOpenDiagnostics = findViewById(R.id.btnOpenDiagnostics)
         switchDemoMode = findViewById(R.id.switchDemoMode)
         btnRunDemoSimulation = findViewById(R.id.btnRunDemoSimulation)
         btnStopDemoSimulation = findViewById(R.id.btnStopDemoSimulation)
+        btnSeedDemoHistory = findViewById(R.id.btnSeedDemoHistory)
         tvSettingsPhoneStatus = findViewById(R.id.tvSettingsPhoneStatus)
         tvSettingsMicStatus = findViewById(R.id.tvSettingsMicStatus)
         tvSettingsNotificationStatus = findViewById(R.id.tvSettingsNotificationStatus)
@@ -60,11 +64,14 @@ class SettingsActivity : AppCompatActivity() {
         btnClearHistory = findViewById(R.id.btnClearHistory)
 
         val prefs = getSharedPreferences(PREFS_SETTINGS, Context.MODE_PRIVATE)
-        val isDemo = prefs.getBoolean(KEY_DEMO_MODE, true)
+        // Default to false so live calls are treated as real calls by default
+        val isDemo = prefs.getBoolean(KEY_DEMO_MODE, false)
         switchDemoMode.isChecked = isDemo
 
-        btnBackSettings.setOnClickListener {
-            finish()
+        btnBackSettings.setOnClickListener { finish() }
+
+        btnOpenDiagnostics.setOnClickListener {
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
         }
 
         switchDemoMode.setOnCheckedChangeListener { _, isChecked ->
@@ -77,7 +84,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         btnRunDemoSimulation.setOnClickListener {
-            val demoNumber = "+91 98765 43210"
+            val demoNumber = "[DEMO] +91 98230 11942"
             CallStateManager.updateState(CallStateManager.State.RINGING, demoNumber)
             CallStateManager.updateState(CallStateManager.State.OFFHOOK, demoNumber)
 
@@ -103,6 +110,11 @@ class SettingsActivity : AppCompatActivity() {
             val serviceIntent = Intent(this, CallMonitoringService::class.java)
             stopService(serviceIntent)
             Toast.makeText(this, "Active simulation terminated", Toast.LENGTH_SHORT).show()
+        }
+
+        btnSeedDemoHistory.setOnClickListener {
+            CallHistoryRepository(this).seedDemoAuditRecords()
+            Toast.makeText(this, "Sample [DEMO] records loaded for presentation", Toast.LENGTH_SHORT).show()
         }
 
         btnRequestAllPermissions.setOnClickListener {

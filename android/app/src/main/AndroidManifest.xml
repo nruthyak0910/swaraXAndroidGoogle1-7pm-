@@ -9,6 +9,7 @@
 
     <!-- Audio Recording (For controlled speakerphone demonstration) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Notifications for Real-time Fraud Alerts (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -64,6 +65,13 @@
         <!-- Protection Settings Screen -->
         <activity
             android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.SvaraX" />
+
+        <!-- Diagnostics Screen -->
+        <activity
+            android:name=".ui.DiagnosticsActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.SvaraX" />

@@ -54,7 +54,7 @@
                         android:id="@+id/tvLiveCallerNumber"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="+91 98765 43210"
+                        android:text="Unknown caller"
                         android:textColor="@color/text_primary"
                         android:textSize="20sp"
                         android:fontFamily="monospace"

@@ -219,7 +219,7 @@ class MainActivity : AppCompatActivity() {
 
         // Open Live Call Screen from active banner
         btnOpenActiveLiveCallUI.setOnClickListener {
-            val num = CallStateManager.getLastIncomingNumber() ?: "+91 98765 43210"
+            val num = CallStateManager.getLastIncomingNumber() ?: "Unknown caller"
             val liveIntent = Intent(this, LiveCallActivity::class.java).apply {
                 putExtra("caller_number", num)
             }

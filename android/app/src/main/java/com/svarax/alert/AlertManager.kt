@@ -5,24 +5,29 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.svarax.MainActivity
 import com.svarax.risk.RiskResult
+import com.svarax.ui.LiveCallActivity
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Priority 9: Real-Time Alert Manager.
- * Dispatches high-priority Android notifications and alerts listeners (e.g. LiveCall UI)
- * based on risk thresholds (LOW, MEDIUM, HIGH, CRITICAL).
+ * AlertManager: Dispatches high-priority heads-up warnings, device vibration, and in-call alerts.
+ *
+ * Implements Android-compliant heads-up notification with fullScreenIntent fallback.
+ * Prevents duplicate alerts and guarantees automatic vibration on physical hardware.
  */
 class AlertManager(private val context: Context) {
 
     companion object {
         private const val TAG = "SvaraX_AlertManager"
-        private const val ALERT_CHANNEL_ID = "svara_fraud_alerts_v2"
+        private const val ALERT_CHANNEL_ID = "svara_fraud_alerts_v3"
         private const val ALERT_NOTIFICATION_ID = 2002
     }
 
@@ -31,6 +36,7 @@ class AlertManager(private val context: Context) {
 
     private val alertListeners = CopyOnWriteArrayList<(RiskResult) -> Unit>()
     private var lastNotifiedLevel: String? = null
+    private var lastNotifiedScore: Int = -1
 
     init {
         createAlertNotificationChannel()
@@ -46,9 +52,10 @@ class AlertManager(private val context: Context) {
 
     /**
      * Evaluates whether a new alert needs to be broadcast or displayed.
+     * Automatically triggers when risk crosses HIGH or CRITICAL.
      */
     fun dispatchAlert(result: RiskResult, phoneNumber: String?) {
-        // 1. Notify in-app UI listeners immediately
+        // 1. Notify in-app UI listeners immediately (if LiveCallActivity or UI is open)
         for (listener in alertListeners) {
             try {
                 listener(result)
@@ -57,32 +64,80 @@ class AlertManager(private val context: Context) {
             }
         }
 
-        // 2. Only fire sound/heads-up notifications when risk enters HIGH or CRITICAL
+        // 2. Prevent duplicate alerts if level is unchanged and score hasn't escalated
+        val isEscalation = (result.riskLevel != lastNotifiedLevel) || (result.riskScore >= lastNotifiedScore + 10)
+        if (!isEscalation) {
+            Log.d(TAG, "Suppressing duplicate alert: level=${result.riskLevel}, score=${result.riskScore}%")
+            return
+        }
+
+        // 3. Fire high-priority alert when risk crosses HIGH or CRITICAL
         if (result.riskLevel == "HIGH" || result.riskLevel == "CRITICAL") {
-            showHighRiskNotification(result, phoneNumber)
+            Log.w(TAG, "Triggering automatic urgent warning for ${result.riskLevel} fraud risk (${result.riskScore}%)")
+            triggerDeviceVibration()
+            showHighRiskWarningNotification(result, phoneNumber)
             lastNotifiedLevel = result.riskLevel
+            lastNotifiedScore = result.riskScore
         } else if (result.riskLevel == "MEDIUM" && lastNotifiedLevel != "MEDIUM") {
             showMediumRiskNotification(result, phoneNumber)
             lastNotifiedLevel = result.riskLevel
+            lastNotifiedScore = result.riskScore
         }
     }
 
     fun clearAlerts() {
         notificationManager.cancel(ALERT_NOTIFICATION_ID)
         lastNotifiedLevel = null
+        lastNotifiedScore = -1
     }
 
-    private fun showHighRiskNotification(result: RiskResult, phoneNumber: String?) {
-        val callerLabel = phoneNumber ?: "Unknown Caller"
+    private fun triggerDeviceVibration() {
+        try {
+            if (context.checkSelfPermission(android.Manifest.permission.VIBRATE) != PackageManager.PERMISSION_GRANTED) {
+                Log.w(TAG, "VIBRATE permission not granted; relying solely on notification channel vibration")
+                return
+            }
+
+            val pattern = longArrayOf(0, 450, 150, 450)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vm?.defaultVibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1))
+            } else {
+                @Suppress("DEPRECATION")
+                val v = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v?.vibrate(VibrationEffect.createWaveform(pattern, -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    v?.vibrate(pattern, -1)
+                }
+            }
+            Log.i(TAG, "Device vibration pattern triggered successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error executing device vibration", e)
+        }
+    }
+
+    private fun showHighRiskWarningNotification(result: RiskResult, phoneNumber: String?) {
+        val callerLabel = phoneNumber ?: "Unknown caller"
         val title = "🚨 ${result.riskLevel} FRAUD RISK DETECTED (${result.riskScore}%)"
 
-        val bulletReasons = result.indicators.take(3).joinToString("\n• ", prefix = "• ")
+        val bulletReasons = if (result.indicators.isNotEmpty()) {
+            result.indicators.take(3).joinToString("\n• ", prefix = "• ")
+        } else {
+            "• Urgent high-risk conversational pattern detected"
+        }
         val content = "Caller: $callerLabel\n$bulletReasons\n\nRecommendation: ${result.recommendation}"
 
-        val pendingIntent = PendingIntent.getActivity(
+        // Full-screen intent target
+        val fullScreenIntent = Intent(context, LiveCallActivity::class.java).apply {
+            putExtra("caller_number", callerLabel)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val fullScreenPendingIntent = PendingIntent.getActivity(
             context,
-            0,
-            Intent(context, MainActivity::class.java),
+            ALERT_NOTIFICATION_ID,
+            fullScreenIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
@@ -95,24 +150,30 @@ class AlertManager(private val context: Context) {
             .setStyle(NotificationCompat.BigTextStyle().bigText(content))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setVibrate(longArrayOf(0, 400, 200, 400))
+            .setVibrate(longArrayOf(0, 450, 150, 450))
             .setSound(soundUri)
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .setColor(0xFFEF4444.toInt()) // Red accent
+            .setContentIntent(fullScreenPendingIntent)
+            .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setColor(0xFFEF4444.toInt()) // High contrast red
             .build()
 
         notificationManager.notify(ALERT_NOTIFICATION_ID, notification)
+        Log.i(TAG, "Heads-up high-risk warning notification dispatched")
     }
 
     private fun showMediumRiskNotification(result: RiskResult, phoneNumber: String?) {
         val title = "⚠ Suspicious Pattern Detected (${result.riskScore}%)"
         val content = "Caller: ${phoneNumber ?: "Active Call"}\n${result.recommendation}"
 
+        val intent = Intent(context, LiveCallActivity::class.java).apply {
+            putExtra("caller_number", phoneNumber ?: "Unknown caller")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val pendingIntent = PendingIntent.getActivity(
             context,
-            0,
-            Intent(context, MainActivity::class.java),
+            ALERT_NOTIFICATION_ID,
+            intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
@@ -136,9 +197,11 @@ class AlertManager(private val context: Context) {
                 "Svara_X Real-Time Fraud Warnings",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Emits urgent warnings and advice during high-risk active phone calls."
+                description = "Urgent heads-up warnings and advice during high-risk active phone calls."
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 400, 200, 400)
+                vibrationPattern = longArrayOf(0, 450, 150, 450)
+                enableLights(true)
+                lightColor = 0xFFEF4444.toInt()
             }
             notificationManager.createNotificationChannel(channel)
         }
