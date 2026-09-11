@@ -898,6 +898,283 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Card: Cellular Call Audio Capability Diagnostic -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardCellularCallAudioCapability"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:backgroundTint="@color/surface_card"
+                app:cardCornerRadius="16dp"
+                app:strokeColor="#334155"
+                app:strokeWidth="1dp"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="CELLULAR CALL AUDIO CAPABILITY"
+                        android:textColor="@color/accent_amber"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.08"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="4dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Legitimate AudioSource &amp; Telephony Routing Capability Detector"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- Two-Phone Physical Test Procedure Box -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="#0F172A"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PHYSICAL TEST PROCEDURE (TWO PHONES)"
+                            android:textColor="@color/accent_blue"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="4dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1. Phone A (This Device): Disable speakerphone (Earpiece mode).\n2. Phone B (Caller): Calls Phone A.\n3. Phone A answers the real cellular call.\n4. Phone B speaks continuously into call.\n5. Phone A user remains silent initially, then speaks.\n6. Tap 'Run Capability Diagnostic' below."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:lineSpacingExtra="2dp" />
+                    </LinearLayout>
+
+                    <!-- Active In-Call Status Context -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="#1E293B"
+                        android:padding="10dp"
+                        android:layout_marginBottom="12dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Cellular Call State:"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                            <TextView
+                                android:id="@+id/tvCellularCallState"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="IDLE"
+                                android:textColor="@color/text_primary"
+                                android:textStyle="bold"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Audio Mode:"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                            <TextView
+                                android:id="@+id/tvCellularAudioMode"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="MODE_NORMAL"
+                                android:textColor="@color/text_primary"
+                                android:textStyle="bold"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Speakerphone:"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                            <TextView
+                                android:id="@+id/tvCellularSpeakerphoneState"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="OFF (Earpiece Mode)"
+                                android:textColor="@color/accent_green"
+                                android:textStyle="bold"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Run Button -->
+                    <Button
+                        android:id="@+id/btnRunCellularCapability"
+                        style="@style/Widget.Material3.Button"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="Run Cellular Capability Diagnostic"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="@color/accent_blue"
+                        android:textColor="@android:color/white" />
+
+                    <ProgressBar
+                        android:id="@+id/pbCellularCapability"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:indeterminate="false"
+                        android:max="100"
+                        android:progress="0"
+                        android:visibility="gone"
+                        android:layout_marginTop="8dp" />
+
+                    <TextView
+                        android:id="@+id/tvCellularCapabilityStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Status: Ready. Run during an active phone call to test."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        android:layout_marginTop="4dp" />
+
+                    <!-- Results Container -->
+                    <LinearLayout
+                        android:id="@+id/layoutCellularCapabilityResults"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:layout_marginTop="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="INDIVIDUAL SOURCE CAPABILITY REPORTS"
+                            android:textColor="@color/text_primary"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="8dp" />
+
+                        <!-- Detailed Text Output for all sources -->
+                        <TextView
+                            android:id="@+id/tvCellularDetailReports"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="#0B1120"
+                            android:padding="12dp"
+                            android:textColor="#E2E8F0"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:lineSpacingExtra="3dp"
+                            android:text="Awaiting diagnostic execution..." />
+
+                        <!-- Capability Comparison Table Title -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SOURCE COMPARISON SUMMARY TABLE"
+                            android:textColor="@color/text_primary"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginBottom="8dp" />
+
+                        <!-- Formatted Table View -->
+                        <TextView
+                            android:id="@+id/tvCellularSummaryTable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="#0B1120"
+                            android:padding="12dp"
+                            android:textColor="#93C5FD"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:lineSpacingExtra="2dp"
+                            android:text="Audio source | Available? | Samples | RMS | Likely signal | Limitation" />
+
+                        <!-- Final Answer & Conclusion Card -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:background="#1E1B4B"
+                            android:padding="14dp"
+                            android:layout_marginTop="16dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="CAPABILITY DETERMINATION"
+                                android:textColor="@color/accent_amber"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Can this exact physical device expose remote cellular caller audio to this third-party application?"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:layout_marginTop="4dp" />
+
+                            <TextView
+                                android:id="@+id/tvCellularFinalAnswer"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Answer: NO"
+                                android:textColor="@color/accent_red"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                android:layout_marginTop="6dp" />
+
+                            <TextView
+                                android:id="@+id/tvCellularArchitectureStatement"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="The current Svara_X APK cannot implement silent-earpiece cellular call transcription using ordinary third-party Android APIs."
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:layout_marginTop="6dp"
+                                android:lineSpacingExtra="2dp" />
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Card 3: Telephony Restrictions Explanation -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"

@@ -98,6 +98,17 @@
                         android:text="Open Diagnostics &amp; PCM Audio Probe"
                         android:textColor="@color/accent_green"
                         android:textSize="13sp" />
+
+                    <Button
+                        android:id="@+id/btnOpenCellularCapability"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Cellular Call Audio Capability Diagnostic"
+                        android:textColor="@color/accent_amber"
+                        app:strokeColor="@color/accent_amber"
+                        android:textSize="13sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

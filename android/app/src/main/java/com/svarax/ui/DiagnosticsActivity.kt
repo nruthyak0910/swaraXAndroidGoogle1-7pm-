@@ -1,10 +1,12 @@
 package com.svarax.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.os.Bundle
 import android.os.Handler
@@ -21,6 +23,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -31,7 +34,9 @@ import com.svarax.alert.AlertManager
 import com.svarax.audio.AudioChunk
 import com.svarax.audio.AudioInputState
 import com.svarax.audio.AudioSignal
+import com.svarax.audio.CellularCallAudioCapabilityTester
 import com.svarax.audio.MicrophoneAudioInput
+import com.svarax.call.CallStateManager
 import com.svarax.fraud.FraudDetector
 import com.svarax.fraud.FraudIndicator
 import com.svarax.history.CallHistoryRepository
@@ -59,8 +64,10 @@ class DiagnosticsActivity : AppCompatActivity() {
     companion object {
         private const val TAG_MIC = "SvaraX_MicInput"
         private const val TAG_SPEECH = "SvaraX_SpeechDiag"
+        private const val TAG_CAPABILITY = "SvaraX_CallCapability"
         private const val REQ_PERMISSION_MIC_AUDIO = 201
         private const val REQ_PERMISSION_MIC_SPEECH = 202
+        private const val REQ_PERMISSION_MIC_CAPABILITY = 203
 
         // Duration options in seconds
         private val DURATION_LABELS = arrayOf(
@@ -84,6 +91,22 @@ class DiagnosticsActivity : AppCompatActivity() {
     private lateinit var tvSpeechRecognition: TextView
     private lateinit var tvLiveCallAudio: TextView
     private lateinit var tvAnalysisMode: TextView
+
+    // Cellular Call Audio Capability Views
+    private lateinit var tvCellularCallState: TextView
+    private lateinit var tvCellularAudioMode: TextView
+    private lateinit var tvCellularSpeakerphoneState: TextView
+    private lateinit var btnRunCellularCapability: Button
+    private lateinit var pbCellularCapability: ProgressBar
+    private lateinit var tvCellularCapabilityStatus: TextView
+    private lateinit var layoutCellularCapabilityResults: LinearLayout
+    private lateinit var tvCellularDetailReports: TextView
+    private lateinit var tvCellularSummaryTable: TextView
+    private lateinit var tvCellularFinalAnswer: TextView
+    private lateinit var tvCellularArchitectureStatement: TextView
+
+    private lateinit var capabilityTester: CellularCallAudioCapabilityTester
+    private var isCapabilityTestRunning = false
 
     // Audio Record Test Views
     private lateinit var spinnerAudioDuration: Spinner
@@ -181,11 +204,13 @@ class DiagnosticsActivity : AppCompatActivity() {
 
         alertManager = AlertManager(this)
         historyRepo = CallHistoryRepository(this)
+        capabilityTester = CellularCallAudioCapabilityTester(this)
 
         initViews()
         setupDurationSpinner()
         setupAudioRecordListeners()
         setupSpeechTestListeners()
+        setupCellularCapabilityListeners()
 
         renderDiagnostics()
     }
@@ -250,6 +275,19 @@ class DiagnosticsActivity : AppCompatActivity() {
         tvSpeechPipelineIndicators = findViewById(R.id.tvSpeechPipelineIndicators)
         tvSpeechPipelineRecommendation = findViewById(R.id.tvSpeechPipelineRecommendation)
         tvSpeechHistoryStatus = findViewById(R.id.tvSpeechHistoryStatus)
+
+        // Cellular Call Audio Capability Views
+        tvCellularCallState = findViewById(R.id.tvCellularCallState)
+        tvCellularAudioMode = findViewById(R.id.tvCellularAudioMode)
+        tvCellularSpeakerphoneState = findViewById(R.id.tvCellularSpeakerphoneState)
+        btnRunCellularCapability = findViewById(R.id.btnRunCellularCapability)
+        pbCellularCapability = findViewById(R.id.pbCellularCapability)
+        tvCellularCapabilityStatus = findViewById(R.id.tvCellularCapabilityStatus)
+        layoutCellularCapabilityResults = findViewById(R.id.layoutCellularCapabilityResults)
+        tvCellularDetailReports = findViewById(R.id.tvCellularDetailReports)
+        tvCellularSummaryTable = findViewById(R.id.tvCellularSummaryTable)
+        tvCellularFinalAnswer = findViewById(R.id.tvCellularFinalAnswer)
+        tvCellularArchitectureStatement = findViewById(R.id.tvCellularArchitectureStatement)
 
         btnBack.setOnClickListener { finish() }
         btnRefresh.setOnClickListener { renderDiagnostics() }
@@ -878,6 +916,178 @@ class DiagnosticsActivity : AppCompatActivity() {
                 else -> colorMuted
             }
         )
+
+        updateCellularEnvironmentStatus()
+    }
+
+    private fun setupCellularCapabilityListeners() {
+        btnRunCellularCapability.setOnClickListener {
+            if (!PermissionHelper.isMicrophoneGranted(this)) {
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_PERMISSION_MIC_CAPABILITY)
+                return@setOnClickListener
+            }
+            startCellularCapabilityTest()
+        }
+    }
+
+    private fun updateCellularEnvironmentStatus() {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val isCallActive = (audioManager.mode == AudioManager.MODE_IN_CALL ||
+                audioManager.mode == AudioManager.MODE_IN_COMMUNICATION ||
+                CallStateManager.isCallActive())
+
+        tvCellularCallState.text = if (isCallActive) "ACTIVE (OFFHOOK) ✓" else "IDLE (Not in active call)"
+        tvCellularCallState.setTextColor(
+            if (isCallActive) ContextCompat.getColor(this, R.color.accent_green)
+            else ContextCompat.getColor(this, R.color.text_secondary)
+        )
+
+        val modeStr = when (audioManager.mode) {
+            AudioManager.MODE_IN_CALL -> "MODE_IN_CALL (Telephony active)"
+            AudioManager.MODE_IN_COMMUNICATION -> "MODE_IN_COMMUNICATION (VoIP / Communication)"
+            AudioManager.MODE_RINGTONE -> "MODE_RINGTONE"
+            AudioManager.MODE_NORMAL -> "MODE_NORMAL"
+            else -> "OTHER (${audioManager.mode})"
+        }
+        tvCellularAudioMode.text = modeStr
+        tvCellularAudioMode.setTextColor(
+            if (audioManager.mode == AudioManager.MODE_IN_CALL) ContextCompat.getColor(this, R.color.accent_green)
+            else ContextCompat.getColor(this, R.color.text_primary)
+        )
+
+        val speakerOn = audioManager.isSpeakerphoneOn
+        if (speakerOn) {
+            tvCellularSpeakerphoneState.text = "ON (Warning: Disable speakerphone for silent-earpiece capability test)"
+            tvCellularSpeakerphoneState.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
+        } else {
+            tvCellularSpeakerphoneState.text = "OFF (Earpiece Mode - Required for test) ✓"
+            tvCellularSpeakerphoneState.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
+        }
+    }
+
+    private fun startCellularCapabilityTest() {
+        if (isCapabilityTestRunning) return
+
+        // Stop other active diagnostics to prevent audio resource contention
+        if (isAudioRecordActive) {
+            stopAudioRecordTest(isUserInitiated = false, isCancelled = true)
+        }
+        if (isSpeechTestActive) {
+            stopSpeechTest()
+        }
+
+        isCapabilityTestRunning = true
+        btnRunCellularCapability.isEnabled = false
+        pbCellularCapability.visibility = View.VISIBLE
+        pbCellularCapability.progress = 0
+        tvCellularCapabilityStatus.text = "Initializing diagnostic probe across legitimate AudioSources..."
+        tvCellularCapabilityStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_blue))
+        layoutCellularCapabilityResults.visibility = View.GONE
+
+        Thread {
+            try {
+                val report = capabilityTester.runDiagnostic { stepName, progressPercent ->
+                    runOnUiThread {
+                        pbCellularCapability.progress = progressPercent
+                        tvCellularCapabilityStatus.text = "Progress: $progressPercent% - $stepName"
+                    }
+                }
+
+                runOnUiThread {
+                    displayCapabilityResults(report)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG_CAPABILITY, "Error running capability diagnostic", e)
+                runOnUiThread {
+                    isCapabilityTestRunning = false
+                    btnRunCellularCapability.isEnabled = true
+                    pbCellularCapability.visibility = View.GONE
+                    tvCellularCapabilityStatus.text = "Failed: ${e.message}"
+                    tvCellularCapabilityStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_red))
+                }
+            }
+        }.start()
+    }
+
+    private fun displayCapabilityResults(report: CellularCallAudioCapabilityTester.FullDiagnosticReport) {
+        isCapabilityTestRunning = false
+        btnRunCellularCapability.isEnabled = true
+        pbCellularCapability.visibility = View.GONE
+        tvCellularCapabilityStatus.text = "Diagnostic Complete. Detailed breakdown below:"
+        tvCellularCapabilityStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
+
+        layoutCellularCapabilityResults.visibility = View.VISIBLE
+
+        // 1. Detailed per-source report formatted exactly as required
+        val detailSb = StringBuilder()
+        for (sr in report.sourceReports) {
+            detailSb.append("Source:\n")
+            detailSb.append(sr.sourceName).append("\n\n")
+
+            detailSb.append("AudioRecord initialization:\n")
+            detailSb.append(if (sr.initSuccess) "SUCCESS" else "FAILED").append("\n\n")
+
+            detailSb.append("Exception:\n")
+            detailSb.append(sr.exceptionMessage ?: "None").append("\n\n")
+
+            detailSb.append("Samples read:\n")
+            detailSb.append(sr.samplesRead).append("\n\n")
+
+            detailSb.append("Non-zero samples:\n")
+            detailSb.append(sr.nonZeroSamples).append("\n\n")
+
+            detailSb.append("RMS:\n")
+            detailSb.append(String.format(Locale.US, "%.2f", sr.rms)).append("\n\n")
+
+            detailSb.append("Signal:\n")
+            detailSb.append(sr.signalState).append("\n\n")
+
+            detailSb.append("Audio device:\n")
+            detailSb.append(sr.audioDevice).append("\n\n")
+
+            detailSb.append("Audio mode:\n")
+            detailSb.append(sr.audioMode).append("\n\n")
+
+            detailSb.append("Likely signal:\n")
+            detailSb.append(sr.likelySignal.name).append("\n\n")
+
+            detailSb.append("Result:\n")
+            detailSb.append(sr.resultStatus.name).append("\n\n")
+
+            detailSb.append("Limitation:\n")
+            detailSb.append(sr.limitationSummary).append("\n")
+            detailSb.append("------------------------------------------------------------\n\n")
+        }
+        tvCellularDetailReports.text = detailSb.toString()
+
+        // 2. Summary Table: Audio source | Available? | Samples | RMS | Likely signal | Limitation
+        val tableSb = StringBuilder()
+        tableSb.append(String.format(Locale.US, "%-20s | %-10s | %-8s | %-6s | %-17s | %s\n",
+            "Audio source", "Available?", "Samples", "RMS", "Likely signal", "Limitation"))
+        tableSb.append("---------------------+------------+----------+--------+-------------------+-------------------------------------\n")
+
+        for (sr in report.sourceReports) {
+            val avail = if (sr.initSuccess && sr.samplesRead > 0) "YES" else "NO"
+            val rmsStr = String.format(Locale.US, "%.1f", sr.rms)
+            val shortLimitation = when (sr.sourceName) {
+                "MIC" -> "Local acoustic mic only (OS isolates earpiece)"
+                "VOICE_COMMUNICATION" -> "VoIP AEC filter only (no cellular downlink)"
+                "VOICE_UPLINK" -> "Requires privileged system CAPTURE_AUDIO_OUTPUT"
+                "VOICE_DOWNLINK" -> "Downlink isolated; requires CAPTURE_AUDIO_OUTPUT"
+                else -> "Routing limited to system telephony stack"
+            }
+            tableSb.append(String.format(Locale.US, "%-20s | %-10s | %-8d | %-6s | %-17s | %s\n",
+                sr.sourceName, avail, sr.samplesRead, rmsStr, sr.likelySignal.name, shortLimitation))
+        }
+        tvCellularSummaryTable.text = tableSb.toString()
+
+        // 3. Final Determination Answer
+        tvCellularFinalAnswer.text = "Answer: ${report.canExposeRemoteCallerAudio}"
+        tvCellularFinalAnswer.setTextColor(
+            if (report.canExposeRemoteCallerAudio == "NO") ContextCompat.getColor(this, R.color.accent_red)
+            else ContextCompat.getColor(this, R.color.accent_amber)
+        )
+        tvCellularArchitectureStatement.text = report.explicitArchitectureStatement
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -890,6 +1100,8 @@ class DiagnosticsActivity : AppCompatActivity() {
                 startAudioRecordTest()
             } else if (requestCode == REQ_PERMISSION_MIC_SPEECH) {
                 startSpeechTest()
+            } else if (requestCode == REQ_PERMISSION_MIC_CAPABILITY) {
+                startCellularCapabilityTest()
             }
         } else {
             Toast.makeText(this, "Microphone permission is required to run this diagnostic test.", Toast.LENGTH_LONG).show()

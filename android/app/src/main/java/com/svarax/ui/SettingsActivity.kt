@@ -33,6 +33,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var btnBackSettings: ImageButton
     private lateinit var btnOpenDiagnostics: Button
+    private lateinit var btnOpenCellularCapability: Button
     private lateinit var switchDemoMode: Switch
     private lateinit var btnRunDemoSimulation: Button
     private lateinit var btnStopDemoSimulation: Button
@@ -51,6 +52,7 @@ class SettingsActivity : AppCompatActivity() {
 
         btnBackSettings = findViewById(R.id.btnBackSettings)
         btnOpenDiagnostics = findViewById(R.id.btnOpenDiagnostics)
+        btnOpenCellularCapability = findViewById(R.id.btnOpenCellularCapability)
         switchDemoMode = findViewById(R.id.switchDemoMode)
         btnRunDemoSimulation = findViewById(R.id.btnRunDemoSimulation)
         btnStopDemoSimulation = findViewById(R.id.btnStopDemoSimulation)
@@ -71,6 +73,10 @@ class SettingsActivity : AppCompatActivity() {
         btnBackSettings.setOnClickListener { finish() }
 
         btnOpenDiagnostics.setOnClickListener {
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
+        }
+
+        btnOpenCellularCapability.setOnClickListener {
             startActivity(Intent(this, DiagnosticsActivity::class.java))
         }
 

@@ -105,6 +105,46 @@ This document provides the definitive 15-step testing guide for evaluating **Sva
 - Tap **"Clear Audit History"** and confirm that past records are wiped cleanly.
 - Return to History to confirm the list is refreshed.
 
+### Step 16: Cellular Call Audio Capability Diagnostic (Physical Device Capability Detection)
+- From `Settings` → Tap **"Cellular Call Audio Capability Diagnostic"** (or `Diagnostics` screen).
+- **Physical Test Setup (Two Phones):**
+  1. Phone A: Svara_X device.
+  2. Phone B: Remote caller device.
+  3. Place cellular call from Phone B to Phone A.
+  4. Answer call on Phone A.
+  5. **Ensure Speakerphone is strictly OFF** (audio routed solely to internal earpiece).
+  6. Phone A user remains completely silent during initial probe.
+  7. Phone B remote caller speaks continuously into their phone microphone.
+  8. Tap **"Run Cellular Capability Diagnostic"** on Phone A.
+- **Diagnostic Execution & Reporting:**
+  - Probes 5 distinct audio sources sequentially:
+    1. `MIC` (AudioSource 1)
+    2. `VOICE_COMMUNICATION` (AudioSource 7)
+    3. `VOICE_UPLINK` (AudioSource 2)
+    4. `VOICE_DOWNLINK` (AudioSource 3)
+    5. `TYPE_TELEPHONY` (Routing configuration)
+  - Records 2.5 seconds of PCM per source, calculating sample count, non-zero samples, RMS amplitude, and device routing.
+  - Generates detailed reports for each source, a structured comparison table, and a definitive determination statement.
+
+---
+
+## Cellular Call Audio Capability: Capability Detection Reference
+
+| Audio source | Available to 3rd-Party App? | Samples Read | RMS Amplitude | Likely Signal Detected | Architectural Limitation |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **MIC** | **YES** | ~40,000 | > 0.0 (Acoustic) | **LOCAL MICROPHONE** | Captures local Phone A mic and ambient room acoustics only. Remote caller earpiece audio is physically and logically isolated by Android OS. |
+| **VOICE_COMMUNICATION** | **YES** | ~40,000 | > 0.0 (Acoustic) | **LOCAL MICROPHONE** | VoIP AEC-filtered uplink only; OS does not deliver cellular downlink to unprivileged applications. |
+| **VOICE_UPLINK** | **NO** | 0 | 0.0 | **UNKNOWN** | Throws `SecurityException` / fails initialization. Requires system-privileged `CAPTURE_AUDIO_OUTPUT`. |
+| **VOICE_DOWNLINK** | **NO** | 0 | 0.0 | **UNKNOWN** | Throws `SecurityException` / fails initialization. Downlink access is restricted to system-signed apps holding `CAPTURE_AUDIO_OUTPUT`. |
+| **TYPE_TELEPHONY** | **NO** | 0 | 0.0 | **UNKNOWN** | Public SDK prohibits third-party binding to telephony audio stream directly. |
+
+### Definitive Architectural Finding:
+**Can this physical Android device expose remote cellular caller audio to this third-party application?**
+> **NO.** Standard unprivileged Android applications cannot access cellular downlink audio while earpiece is in use without root or system signature (`CAPTURE_AUDIO_OUTPUT`). Real-time fraud detection on incoming caller audio requires either:
+> 1. Speakerphone activation (allowing acoustic capture via device microphone).
+> 2. Telecom operator / carrier network-level speech transcription.
+> 3. System OEM platform signing or Accessibility audio capture where supported.
+
 ---
 
 ## Verification Matrix
@@ -118,3 +158,4 @@ This document provides the definitive 15-step testing guide for evaluating **Sva
 | **P10-P11**| Audio & Voice Analysis | Speakerphone PCM acquisition with zero-crossing acoustic heuristics | ✅ Verified |
 | **P12** | History & Persistence | Records persisted to SharedPreferences with JSON serialization | ✅ Verified |
 | **P13** | Protection Settings | Status checklist, demo mode toggle, and audit history reset | ✅ Verified |
+| **P16** | Cellular Capability Diagnostic | Probes all 5 sources during active cellular call, outputs complete comparison table & limitation report | ✅ Verified |
