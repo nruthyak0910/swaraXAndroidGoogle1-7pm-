@@ -27,13 +27,22 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.svarax.R
+import com.svarax.alert.AlertManager
 import com.svarax.audio.AudioChunk
 import com.svarax.audio.AudioInputState
 import com.svarax.audio.AudioSignal
 import com.svarax.audio.MicrophoneAudioInput
+import com.svarax.fraud.FraudDetector
+import com.svarax.fraud.FraudIndicator
+import com.svarax.history.CallHistoryRepository
+import com.svarax.history.CallRecord
 import com.svarax.permission.PermissionHelper
+import com.svarax.risk.RiskEngine
+import com.svarax.risk.RiskResult
 import com.svarax.service.CallMonitoringService
+import com.svarax.speech.TranscriptChunk
 import java.util.Locale
+import java.util.UUID
 
 /**
  * DiagnosticsActivity: Physical Hardware and Subsystem Diagnostics Screen.
@@ -97,6 +106,19 @@ class DiagnosticsActivity : AppCompatActivity() {
     private lateinit var tvSpeechStatus: TextView
     private lateinit var tvPartialTranscript: TextView
     private lateinit var tvFinalTranscript: TextView
+    private lateinit var tvSpeechPipelineDispatch: TextView
+    private lateinit var tvSpeechPipelineFraud: TextView
+    private lateinit var tvSpeechPipelineRisk: TextView
+    private lateinit var tvSpeechPipelineAlert: TextView
+    private lateinit var tvSpeechPipelineIndicators: TextView
+    private lateinit var tvSpeechPipelineRecommendation: TextView
+    private lateinit var tvSpeechHistoryStatus: TextView
+
+    // Real Fraud Pipeline & History Components
+    private val fraudDetector = FraudDetector()
+    private val riskEngine = RiskEngine()
+    private lateinit var alertManager: AlertManager
+    private lateinit var historyRepo: CallHistoryRepository
 
     // Audio Record Test State
     private var probeInput: MicrophoneAudioInput? = null
@@ -118,6 +140,9 @@ class DiagnosticsActivity : AppCompatActivity() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var isSpeechTestActive = false
     private var cumulativeTranscript = ""
+    private var speechTestStartTime = 0L
+    private val speechTestIndicators = mutableListOf<FraudIndicator>()
+    private var speechTestRiskResult: RiskResult? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -153,6 +178,9 @@ class DiagnosticsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_diagnostics)
+
+        alertManager = AlertManager(this)
+        historyRepo = CallHistoryRepository(this)
 
         initViews()
         setupDurationSpinner()
@@ -215,6 +243,13 @@ class DiagnosticsActivity : AppCompatActivity() {
         tvSpeechStatus = findViewById(R.id.tvSpeechStatus)
         tvPartialTranscript = findViewById(R.id.tvPartialTranscript)
         tvFinalTranscript = findViewById(R.id.tvFinalTranscript)
+        tvSpeechPipelineDispatch = findViewById(R.id.tvSpeechPipelineDispatch)
+        tvSpeechPipelineFraud = findViewById(R.id.tvSpeechPipelineFraud)
+        tvSpeechPipelineRisk = findViewById(R.id.tvSpeechPipelineRisk)
+        tvSpeechPipelineAlert = findViewById(R.id.tvSpeechPipelineAlert)
+        tvSpeechPipelineIndicators = findViewById(R.id.tvSpeechPipelineIndicators)
+        tvSpeechPipelineRecommendation = findViewById(R.id.tvSpeechPipelineRecommendation)
+        tvSpeechHistoryStatus = findViewById(R.id.tvSpeechHistoryStatus)
 
         btnBack.setOnClickListener { finish() }
         btnRefresh.setOnClickListener { renderDiagnostics() }
@@ -507,6 +542,9 @@ class DiagnosticsActivity : AppCompatActivity() {
     private fun startSpeechTest() {
         isSpeechTestActive = true
         cumulativeTranscript = ""
+        speechTestStartTime = System.currentTimeMillis()
+        speechTestIndicators.clear()
+        speechTestRiskResult = null
 
         btnStartSpeechTest.visibility = View.GONE
         btnStopSpeechTest.visibility = View.VISIBLE
@@ -515,6 +553,19 @@ class DiagnosticsActivity : AppCompatActivity() {
         tvSpeechStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_amber))
         tvPartialTranscript.text = "Listening for speech..."
         tvFinalTranscript.text = "Speak naturally: \"Hello, this is a Svara X microphone test...\""
+
+        tvSpeechPipelineDispatch.text = "LISTENING FOR SPEECH"
+        tvSpeechPipelineDispatch.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        tvSpeechPipelineFraud.text = "STANDBY"
+        tvSpeechPipelineFraud.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        tvSpeechPipelineRisk.text = "STANDBY"
+        tvSpeechPipelineRisk.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        tvSpeechPipelineAlert.text = "STANDBY"
+        tvSpeechPipelineAlert.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        tvSpeechPipelineIndicators.text = "Detected indicators: None"
+        tvSpeechPipelineRecommendation.text = "Action: Awaiting speech recognition"
+        tvSpeechHistoryStatus.text = "Call History: Session will be saved on Stop"
+        tvSpeechHistoryStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
 
         initAndStartSpeechRecognizer()
     }
@@ -580,7 +631,7 @@ class DiagnosticsActivity : AppCompatActivity() {
                         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         if (!matches.isNullOrEmpty()) {
                             val recognized = matches[0]
-                            Log.i(TAG_SPEECH, "Speech recognized: \"$recognized\"")
+                            Log.i("SvaraX_AndroidSTT", "FINAL_TRANSCRIPT_RECEIVED length=${recognized.length}")
                             cumulativeTranscript = if (cumulativeTranscript.isBlank()) {
                                 recognized
                             } else {
@@ -588,6 +639,64 @@ class DiagnosticsActivity : AppCompatActivity() {
                             }
                             tvFinalTranscript.text = "\"$cumulativeTranscript\""
                             tvPartialTranscript.text = "—"
+
+                            // A. ROUTE REAL TRANSCRIPT INTO FRAUD PIPELINE
+                            Log.d("SvaraX_TranscriptPipeline", "TRANSCRIPT_CHUNK_CREATED")
+                            val chunk = TranscriptChunk(text = recognized, isFinal = true, timestamp = System.currentTimeMillis())
+                            Log.d("SvaraX_TranscriptPipeline", "TRANSCRIPT_CHUNK_DISPATCHED")
+
+                            tvSpeechPipelineDispatch.text = "DISPATCHED (${recognized.length} chars)"
+                            tvSpeechPipelineDispatch.setTextColor(ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_green))
+
+                            // 1. Fraud Detection
+                            val newIndicators = fraudDetector.analyze(cumulativeTranscript)
+                            for (ind in newIndicators) {
+                                if (!speechTestIndicators.any { it.category == ind.category }) {
+                                    speechTestIndicators.add(ind)
+                                }
+                            }
+
+                            if (speechTestIndicators.isNotEmpty()) {
+                                tvSpeechPipelineFraud.text = "${speechTestIndicators.size} INDICATOR(S) FOUND"
+                                tvSpeechPipelineFraud.setTextColor(ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_red))
+                                tvSpeechPipelineIndicators.text = "Detected indicators:\n" + speechTestIndicators.joinToString("\n") {
+                                    "• ${it.evidence} (${(it.confidence * 100).toInt()}%)"
+                                }
+                            } else {
+                                tvSpeechPipelineFraud.text = "NO THREATS DETECTED"
+                                tvSpeechPipelineFraud.setTextColor(ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_green))
+                                tvSpeechPipelineIndicators.text = "Detected indicators: None"
+                            }
+
+                            // 2. Dynamic Risk Evaluation
+                            val riskResult = riskEngine.evaluate(
+                                indicators = speechTestIndicators,
+                                voiceResult = null,
+                                isDemo = false
+                            )
+                            speechTestRiskResult = riskResult
+
+                            val riskColor = when (riskResult.riskLevel) {
+                                "CRITICAL", "HIGH" -> ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_red)
+                                "MEDIUM" -> ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_amber)
+                                else -> ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_green)
+                            }
+                            tvSpeechPipelineRisk.text = "${riskResult.riskScore}% ${riskResult.riskLevel}"
+                            tvSpeechPipelineRisk.setTextColor(riskColor)
+                            tvSpeechPipelineRecommendation.text = "Action: ${riskResult.recommendation}"
+
+                            // 3. Alert Manager Dispatch
+                            alertManager.dispatchAlert(riskResult, "Diagnostic Test Call")
+                            if (riskResult.riskLevel == "CRITICAL" || riskResult.riskLevel == "HIGH") {
+                                tvSpeechPipelineAlert.text = "DISPATCHED (Vibration + Heads-Up Alert)"
+                                tvSpeechPipelineAlert.setTextColor(ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_red))
+                            } else if (riskResult.riskLevel == "MEDIUM") {
+                                tvSpeechPipelineAlert.text = "DISPATCHED (Caution Notification)"
+                                tvSpeechPipelineAlert.setTextColor(ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_amber))
+                            } else {
+                                tvSpeechPipelineAlert.text = "STANDBY (Low Risk)"
+                                tvSpeechPipelineAlert.setTextColor(ContextCompat.getColor(this@DiagnosticsActivity, R.color.accent_green))
+                            }
                         }
 
                         // Continue listening across multiple phrases until user stops
@@ -656,6 +765,36 @@ class DiagnosticsActivity : AppCompatActivity() {
             Log.i(TAG_SPEECH, "SpeechRecognizer destroyed cleanly")
         } catch (e: Exception) {
             Log.e(TAG_SPEECH, "Error destroying SpeechRecognizer", e)
+        }
+
+        // B. PERSIST TEST SESSION AS REAL CALL RECORD IN CALL HISTORY
+        val elapsedSec = if (speechTestStartTime > 0L) {
+            ((System.currentTimeMillis() - speechTestStartTime) / 1000).toInt().coerceAtLeast(1)
+        } else 1
+
+        val finalResult = speechTestRiskResult ?: riskEngine.evaluate(speechTestIndicators, null, false)
+
+        val testRecord = CallRecord(
+            id = UUID.randomUUID().toString(),
+            timestamp = System.currentTimeMillis(),
+            callerNumber = "Diagnostic Test Call",
+            durationSeconds = elapsedSec,
+            finalRiskScore = finalResult.riskScore,
+            riskLevel = finalResult.riskLevel,
+            detectedIndicators = finalResult.indicators,
+            recommendation = finalResult.recommendation,
+            fullTranscriptSnippet = if (cumulativeTranscript.isNotBlank()) cumulativeTranscript.take(500) else "[Diagnostic speech session]",
+            isDemoSimulation = false
+        )
+
+        val saved = historyRepo.saveRecord(testRecord)
+        if (saved) {
+            tvSpeechHistoryStatus.text = "Call History: SAVED (${finalResult.riskLevel} ${finalResult.riskScore}%, ${elapsedSec}s)"
+            tvSpeechHistoryStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_green))
+            Toast.makeText(this, "Session saved to Call History (${finalResult.riskLevel} ${finalResult.riskScore}%)", Toast.LENGTH_SHORT).show()
+        } else {
+            tvSpeechHistoryStatus.text = "Call History: SAVE FAILED"
+            tvSpeechHistoryStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_red))
         }
     }
 

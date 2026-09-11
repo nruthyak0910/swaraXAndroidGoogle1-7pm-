@@ -73,15 +73,18 @@ class AlertManager(private val context: Context) {
 
         // 3. Fire high-priority alert when risk crosses HIGH or CRITICAL
         if (result.riskLevel == "HIGH" || result.riskLevel == "CRITICAL") {
-            Log.w(TAG, "Triggering automatic urgent warning for ${result.riskLevel} fraud risk (${result.riskScore}%)")
+            Log.i(TAG, "ALERT_DISPATCHED risk=${result.riskLevel} score=${result.riskScore}%")
             triggerDeviceVibration()
             showHighRiskWarningNotification(result, phoneNumber)
             lastNotifiedLevel = result.riskLevel
             lastNotifiedScore = result.riskScore
         } else if (result.riskLevel == "MEDIUM" && lastNotifiedLevel != "MEDIUM") {
+            Log.i(TAG, "ALERT_DISPATCHED risk=${result.riskLevel} score=${result.riskScore}%")
             showMediumRiskNotification(result, phoneNumber)
             lastNotifiedLevel = result.riskLevel
             lastNotifiedScore = result.riskScore
+        } else {
+            Log.d(TAG, "ALERT_EVALUATED level=${result.riskLevel} score=${result.riskScore}% (No notification required)")
         }
     }
 

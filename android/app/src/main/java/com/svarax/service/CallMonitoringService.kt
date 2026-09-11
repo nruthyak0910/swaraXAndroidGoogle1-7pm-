@@ -149,6 +149,7 @@ class CallMonitoringService : Service() {
         historyRepo = CallHistoryRepository(this)
 
         CallStateManager.addListener(callStateListener)
+        CallStateManager.startListening(this)
         Log.i(TAG, "CallMonitoringService created")
     }
 
@@ -212,37 +213,19 @@ class CallMonitoringService : Service() {
         voiceAnalyzer.reset()
         isLiveAudioUnavailable = false
 
-        // 1. Start audio input (MicrophoneAudioInput)
+        // 1. Audio input management
         if (!isDemoMode) {
-            audioInput.start { chunk: AudioChunk ->
-                latestAudioDiagnostics = audioInput.getDiagnostics()
-                latestAudioState = audioInput.getState()
-
-                // Feed genuine acoustic analyzer
-                latestVoiceResult = voiceAnalyzer.processChunk(chunk)
-
-                // Track signal availability
-                if (chunk.signal == AudioSignal.SILENCE && audioInput.getState() == AudioInputState.NO_SIGNAL) {
-                    if (!isLiveAudioUnavailable) {
-                        isLiveAudioUnavailable = true
-                        Log.w(TAG, "Live audio unavailable: AudioRecord receiving continuous silence/zero samples during call")
-                        updateNotification(
-                            title = "Call Active",
-                            phoneNumber = activePhoneNumber,
-                            result = null,
-                            statusSubtitle = "Live call audio unavailable on this device."
-                        )
-                    }
-                } else if (chunk.signal == AudioSignal.SIGNAL_PRESENT) {
-                    if (isLiveAudioUnavailable) {
-                        isLiveAudioUnavailable = false
-                    }
-                }
-
-                // Explicit STT consumption: Only feed raw PCM if STT explicitly supports PCM consumption
-                if (speechToText is PcmConsumerSpeechToText) {
+            // If STT consumes PCM directly, AudioRecord feeds it.
+            // If STT is native SpeechRecognizer, AudioRecord must NOT run concurrently to avoid OS microphone contention.
+            if (speechToText is PcmConsumerSpeechToText) {
+                audioInput.start { chunk: AudioChunk ->
+                    latestAudioDiagnostics = audioInput.getDiagnostics()
+                    latestAudioState = audioInput.getState()
+                    latestVoiceResult = voiceAnalyzer.processChunk(chunk)
                     (speechToText as PcmConsumerSpeechToText).processAudioChunk(chunk)
                 }
+            } else {
+                Log.i(TAG, "Native SpeechRecognizer active: yielding exclusive mic capture to SpeechRecognizer")
             }
         }
 
@@ -252,9 +235,8 @@ class CallMonitoringService : Service() {
                 handleNewTranscriptChunk(chunk.text)
             },
             onError = { errorMsg ->
-                Log.w(TAG, "Speech-to-Text reporting status: $errorMsg")
+                Log.w("SvaraX_AndroidSTT", "Speech-to-Text reporting status: $errorMsg")
                 if (!isDemoMode) {
-                    // Cellular isolation prevents STT from hearing caller
                     isLiveAudioUnavailable = true
                 }
             }
@@ -270,14 +252,13 @@ class CallMonitoringService : Service() {
             "$cumulativeTranscript $newText"
         }
 
-        Log.d(TAG, "Transcript chunk received [${if (isDemoMode) "DEMO" else "LIVE"}]: \"$newText\"")
+        Log.d("SvaraX_TranscriptPipeline", "TRANSCRIPT_CHUNK_RECEIVED text=\"$newText\"")
 
         // 3. Fraud Detection
         val newIndicators = fraudDetector.analyze(cumulativeTranscript)
         for (ind in newIndicators) {
             if (!detectedIndicators.any { it.category == ind.category }) {
                 detectedIndicators.add(ind)
-                Log.i(TAG, "New Fraud Indicator identified: ${ind.category} (Confidence: ${ind.confidence})")
             }
         }
 
@@ -351,8 +332,8 @@ class CallMonitoringService : Service() {
                     callerNumber = activePhoneNumber,
                     durationSeconds = duration,
                     finalRiskScore = 0,
-                    riskLevel = "UNVERIFIED",
-                    detectedIndicators = emptyList(),
+                    riskLevel = "NOT_ANALYZED",
+                    detectedIndicators = listOf("Live audio unavailable (OS cellular isolation)"),
                     recommendation = "Live call audio was unavailable on this device during the call.",
                     fullTranscriptSnippet = "[Audio unavailable due to Android OS cellular isolation]",
                     isDemoSimulation = false
@@ -375,13 +356,16 @@ class CallMonitoringService : Service() {
         }
 
         historyRepo.saveRecord(record)
-        Log.i(TAG, "Call record persisted: caller=${record.callerNumber}, score=${record.finalRiskScore}%, level=${record.riskLevel}, isDemo=${record.isDemoSimulation}")
+        Log.i("SvaraX_MonitoringSvc", "CALL_FINALIZED caller=${record.callerNumber} duration=${record.durationSeconds}s score=${record.finalRiskScore}% level=${record.riskLevel}")
         currentRiskResult = null
     }
 
     override fun onDestroy() {
         super.onDestroy()
         isServiceRunning = false
+        if (!isCallSaved) {
+            finalizeAndSaveCall()
+        }
         stopAnalysisPipeline()
         CallStateManager.removeListener(callStateListener)
         alertManager.clearAlerts()

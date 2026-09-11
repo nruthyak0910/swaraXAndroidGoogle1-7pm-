@@ -19,7 +19,7 @@ class FraudDetector {
         // 1. Bank Impersonation
         RulePattern(
             category = FraudCategory.BANK_IMPERSONATION,
-            pattern = Pattern.compile("\\b(sbi|hdfc|icici|axis|rbi|reserve\\s+bank|bank\\s+manager|calling\\s+from\\s+(your\\s+)?bank|bank\\s+branch|fraud\\s+prevention\\s+department)\\b", Pattern.CASE_INSENSITIVE),
+            pattern = Pattern.compile("\\b(sbi|hdfc|icici|axis|pnb|bob|kotak|rbi|reserve\\s+bank|bank\\s+manager|bank\\s+officer|(calling|speaking)\\s+from\\s+(your\\s+)?bank|(this\\s+is|it\\s+is|i\\s+am)\\s+(from\\s+)?(your\\s+)?bank|bank\\s+branch|bank\\s+security|fraud\\s+prevention\\s+department|from\\s+your\\s+bank)\\b", Pattern.CASE_INSENSITIVE),
             confidence = 0.90f,
             evidenceDescription = "Bank impersonation"
         ),
@@ -120,6 +120,7 @@ class FraudDetector {
      * Analyzes incoming transcript text and returns all detected fraud indicators.
      */
     fun analyze(transcript: String): List<FraudIndicator> {
+        android.util.Log.d("SvaraX_FraudDetector", "ANALYZE_START")
         val detectedIndicators = mutableListOf<FraudIndicator>()
         val seenCategories = mutableSetOf<FraudCategory>()
 
@@ -134,9 +135,11 @@ class FraudDetector {
                     )
                 )
                 seenCategories.add(rule.category)
+                android.util.Log.i("SvaraX_FraudDetector", "INDICATOR_ADDED category=${rule.category} confidence=${rule.confidence}")
             }
         }
 
+        android.util.Log.i("SvaraX_FraudDetector", "INDICATORS_FOUND count=${detectedIndicators.size}")
         return detectedIndicators
     }
 }

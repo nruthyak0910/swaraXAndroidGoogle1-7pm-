@@ -135,8 +135,11 @@ class AndroidSpeechToText(private val context: Context) : SpeechToText {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
                     val text = matches[0]
-                    Log.i(TAG, "SpeechRecognizer recognized text (final): \"$text\"")
-                    callback?.invoke(TranscriptChunk(text = text, isFinal = true))
+                    Log.i(TAG, "FINAL_TRANSCRIPT_RECEIVED length=${text.length}")
+                    Log.d("SvaraX_TranscriptPipeline", "TRANSCRIPT_CHUNK_CREATED")
+                    val chunk = TranscriptChunk(text = text, isFinal = true, timestamp = System.currentTimeMillis())
+                    Log.d("SvaraX_TranscriptPipeline", "TRANSCRIPT_CHUNK_DISPATCHED")
+                    callback?.invoke(chunk)
                 }
                 if (isListening) {
                     restartListening()

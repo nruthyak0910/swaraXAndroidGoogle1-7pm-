@@ -89,13 +89,15 @@ class RiskEngine {
             }
         }
 
-        return RiskResult(
+        val result = RiskResult(
             riskScore = scorePercent,
             riskLevel = level,
             indicators = indicatorDescriptions.distinct(),
             recommendation = recommendation,
             isDemoSimulation = isDemo
         )
+        android.util.Log.i("SvaraX_RiskEngine", "RISK_EVALUATED score=${result.riskScore} level=${result.riskLevel} indicatorCount=${indicators.size}")
+        return result
     }
 
     private fun generateCriticalRecommendation(indicators: List<FraudIndicator>): String {
